@@ -2,7 +2,7 @@ import streamlit as st
 import sqlite3
 import hashlib
 import uuid
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, time
 from streamlit_calendar import calendar
 
 st.set_page_config(page_title="スケジュール管理", layout="wide")
@@ -42,15 +42,13 @@ conn.commit()
 def hash_pw(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
 
-def is_in_range(task, target_date):
-    start = datetime.fromisoformat(task["start"]).date()
-    end = datetime.fromisoformat(task["end"]).date()
-    return start <= target_date <= end
+def in_range(task, target_date):
+    s = datetime.fromisoformat(task["start"])
+    e = datetime.fromisoformat(task["end"])
+    return s.date() <= target_date <= e.date()
 
-def format_range(t):
-    s = datetime.fromisoformat(t["start"]).strftime("%Y/%m/%d %H:%M")
-    e = datetime.fromisoformat(t["end"]).strftime("%Y/%m/%d %H:%M")
-    return f"{s} → {e}"
+def format_dt(dt_str):
+    return datetime.fromisoformat(dt_str).strftime("%Y/%m/%d %H:%M")
 
 # =========================================================
 # auth
@@ -144,7 +142,7 @@ if st.session_state.user_id is None:
                 st.session_state.user_id = uid
                 st.rerun()
             else:
-                st.error("ログイン失敗")
+                st.error("失敗")
 
     else:
         if st.button("登録"):
@@ -158,12 +156,12 @@ if st.session_state.user_id is None:
 # =========================================================
 # HEADER
 # =========================================================
-col_title, col_logout = st.columns([8, 1])
+col1, col2 = st.columns([8, 1])
 
-with col_title:
+with col1:
     st.title("📅 スケジュール管理")
 
-with col_logout:
+with col2:
     if st.button("🚪 ログアウト"):
         st.session_state.user_id = None
         st.session_state.selected_task_id = None
@@ -181,7 +179,7 @@ tasks = load_tasks(user_id)
 col_cal, col_task = st.columns([3.5, 1.5])
 
 # =========================================================
-# カレンダー（左・複数日対応）
+# カレンダー
 # =========================================================
 with col_cal:
     st.subheader("📅 カレンダー")
@@ -220,7 +218,7 @@ with col_cal:
     )
 
 # =========================================================
-# タスク管理（右）
+# タスク管理
 # =========================================================
 with col_task:
     st.subheader("📋 タスク管理")
@@ -229,32 +227,32 @@ with col_task:
 
     filtered = [
         t for t in tasks
-        if is_in_range(t, selected_date)
+        if in_range(t, selected_date)
     ]
 
     st.markdown("### タスク一覧")
 
     for t in filtered:
-        label = f"{'✅ ' if t['done'] else ''}{t['title']} ({format_range(t)})"
+        label = f"{'✅ ' if t['done'] else ''}{t['title']}"
 
-        col_name, col_done, col_del = st.columns([6, 2, 2])
+        col_a, col_b, col_c = st.columns([6, 2, 2])
 
-        with col_name:
+        with col_a:
             if st.button(label, key=f"sel_{t['id']}"):
                 st.session_state.selected_task_id = t["id"]
 
-        with col_done:
+        with col_b:
             if not t["done"]:
-                if st.button("✔", key=f"done_{t['id']}"):
+                if st.button("✔", key=f"d_{t['id']}"):
                     mark_done(t["id"])
                     st.rerun()
             else:
-                if st.button("↩", key=f"undo_{t['id']}"):
+                if st.button("↩", key=f"u_{t['id']}"):
                     mark_undone(t["id"])
                     st.rerun()
 
-        with col_del:
-            if st.button("🗑", key=f"del_{t['id']}"):
+        with col_c:
+            if st.button("🗑", key=f"x_{t['id']}"):
                 delete_task(t["id"])
                 st.session_state.selected_task_id = None
                 st.rerun()
@@ -269,25 +267,31 @@ with col_task:
         st.write(f"**タイトル:** {task['title']}")
         st.write(f"**カテゴリ:** {task['category']}")
         st.write(f"**メモ:** {task['memo']}")
+        st.write(f"**開始:** {format_dt(task['start'])}")
+        st.write(f"**終了:** {format_dt(task['end'])}")
         st.write(f"**状態:** {'完了' if task['done'] else '未完了'}")
 
     else:
         st.info("タスクを選択してください")
 
 # =========================================================
-# タスク追加
+# タスク追加（期間対応）
 # =========================================================
 st.divider()
-st.subheader("➕ タスク追加")
+st.subheader("➕ タスク追加（期間対応）")
 
 with st.form("add"):
     title = st.text_input("タイトル")
     memo = st.text_area("メモ")
     category = st.text_input("カテゴリ", "未分類")
 
-    d = st.date_input("日付", date.today())
-    stime = st.time_input("開始", datetime.now().time())
-    etime = st.time_input("終了", (datetime.now() + timedelta(hours=1)).time())
+    st.markdown("#### 開始")
+    sd = st.date_input("開始日", date.today(), key="sd")
+    stt = st.time_input("開始時刻", time(9, 0), key="stt")
+
+    st.markdown("#### 終了")
+    ed = st.date_input("終了日", date.today(), key="ed")
+    ett = st.time_input("終了時刻", time(10, 0), key="ett")
 
     if st.form_submit_button("追加"):
         task = {
@@ -296,8 +300,8 @@ with st.form("add"):
             "title": title,
             "memo": memo,
             "category": category,
-            "start": datetime.combine(d, stime).isoformat(),
-            "end": datetime.combine(d, etime).isoformat(),
+            "start": datetime.combine(sd, stt).isoformat(),
+            "end": datetime.combine(ed, ett).isoformat(),
             "done": False
         }
 
