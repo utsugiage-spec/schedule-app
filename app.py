@@ -59,11 +59,7 @@ def in_range(s, target):
 # =========================================================
 def register(u, p):
     try:
-        c.execute("INSERT INTO users VALUES (?, ?, ?)", (
-            str(uuid.uuid4()),
-            u,
-            hash_pw(p)
-        ))
+        c.execute("INSERT INTO users VALUES (?, ?, ?)", (str(uuid.uuid4()), u, hash_pw(p)))
         conn.commit()
         return True
     except:
@@ -116,7 +112,7 @@ def delete_schedule(i):
     conn.commit()
 
 # =========================================================
-# session_state 初期化
+# session
 # =========================================================
 if "user_id" not in st.session_state:
     st.session_state.user_id = None
@@ -129,12 +125,6 @@ if "selected_schedule_id" not in st.session_state:
 
 if "custom_categories" not in st.session_state:
     st.session_state.custom_categories = []
-
-if "category_mode" not in st.session_state:
-    st.session_state.category_mode = "仕事"
-
-if "new_category_input" not in st.session_state:
-    st.session_state.new_category_input = ""
 
 # =========================================================
 # LOGIN
@@ -160,7 +150,7 @@ if st.session_state.user_id is None:
     else:
         if st.button("登録"):
             if register(u, p):
-                st.success("登録成功")
+                st.success("登録完了")
 
     st.stop()
 
@@ -197,6 +187,7 @@ with col_cal:
 
     events = []
 
+    # スケジュール
     for s in schedules:
         color = "#999999" if s["done"] else "#3788d8"
 
@@ -208,6 +199,7 @@ with col_cal:
             "color": color
         })
 
+    # 祝日
     base = st.session_state.selected_date.replace(day=1)
 
     for i in range(31):
@@ -224,6 +216,7 @@ with col_cal:
                 "color": "#ffcccc"
             })
 
+    # 選択日ハイライト（固定1個）
     events.append({
         "id": "selected",
         "title": "📍選択中",
@@ -274,6 +267,9 @@ with col_list:
 
     filtered = [s for s in schedules if in_range(s, selected)]
 
+    if filtered and st.session_state.selected_schedule_id is None:
+        st.session_state.selected_schedule_id = filtered[0]["id"]
+
     for s in filtered:
 
         c1, c2, c3 = st.columns([6, 2, 2])
@@ -295,23 +291,24 @@ with col_list:
         with c3:
             if st.button("🗑", key=f"x{s['id']}"):
                 delete_schedule(s["id"])
+                st.session_state.selected_schedule_id = None
                 st.rerun()
 
-# =========================================================
-# 詳細
-# =========================================================
-st.divider()
-st.subheader("詳細")
+    st.divider()
 
-sel = next((x for x in schedules if x["id"] == st.session_state.selected_schedule_id), None)
+    st.subheader("詳細")
 
-if sel:
-    st.write(sel["title"])
-    st.write(sel["category"])
-    st.write(sel["memo"])
+    sel = next((x for x in schedules if x["id"] == st.session_state.selected_schedule_id), None)
+
+    if sel:
+        st.write(sel["title"])
+        st.write(sel["category"])
+        st.write(sel["memo"])
+        st.write(format_dt(sel["start"]))
+        st.write(format_dt(sel["end"]))
 
 # =========================================================
-# 追加（カテゴリ修正版）
+# 追加フォーム（カテゴリ復活）
 # =========================================================
 st.divider()
 st.subheader("➕ スケジュール追加")
@@ -332,24 +329,16 @@ with st.form("add"):
     with c4:
         ett = st.time_input("終了時間", time(10))
 
-    base_categories = ["仕事", "学校", "趣味"]
-    options = base_categories + st.session_state.custom_categories + ["＋新規作成"]
+    base = ["仕事", "学校", "趣味"]
+    options = base + st.session_state.custom_categories + ["＋新規作成"]
 
-    st.session_state.category_mode = st.selectbox(
-        "カテゴリ",
-        options,
-        key="category_mode"
-    )
+    mode = st.selectbox("カテゴリ", options)
 
-    # ⭐ ここが即時表示の核心
-    if st.session_state.category_mode == "＋新規作成":
-        new_cat = st.text_input(
-            "新カテゴリ名",
-            key="new_category_input"
-        )
-        category = new_cat if new_cat else "未分類"
-    else:
-        category = st.session_state.category_mode
+    new_cat = None
+    if mode == "＋新規作成":
+        new_cat = st.text_input("新カテゴリ")
+
+    category = new_cat if new_cat else mode
 
     memo = st.text_area("メモ")
 
@@ -357,12 +346,9 @@ with st.form("add"):
 
     if submit:
 
-        if (
-            category not in base_categories
-            and category not in st.session_state.custom_categories
-            and category != "未分類"
-        ):
-            st.session_state.custom_categories.append(category)
+        if category not in base and category not in st.session_state.custom_categories:
+            if category and category != "＋新規作成":
+                st.session_state.custom_categories.append(category)
 
         add_schedule({
             "id": str(uuid.uuid4()),
