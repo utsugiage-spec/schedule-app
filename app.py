@@ -347,10 +347,9 @@ with col_list:
 # =========================================================
 # 追加
 # =========================================================
-st.divider()
 st.subheader("➕ スケジュール追加")
 
-with st.form("add"):
+with st.form("add_form"):
 
     title = st.text_input("スケジュール名")
 
@@ -368,36 +367,37 @@ with st.form("add"):
     with c4:
         ett = st.time_input("終了時間", time(10, 0))
 
-base_categories = ["仕事", "学校", "趣味"]
-options = base_categories + st.session_state.custom_categories + ["＋新規作成"]
+    # =========================
+    # カテゴリ（ここ重要）
+    # =========================
+    base_categories = ["仕事", "学校", "趣味"]
+    options = base_categories + st.session_state.custom_categories + ["＋新規作成"]
 
-cat_mode = st.selectbox("カテゴリ", options)
+    cat_mode = st.selectbox("カテゴリ", options)
 
-# =========================
-# 新規作成が選ばれた場合
-# =========================
-if cat_mode == "＋新規作成":
-
-    # 入力欄を必ず表示
-    new_cat = st.text_input("新しいカテゴリ名を入力")
-
-    category = new_cat if new_cat else "未分類"
-
-else:
-    category = cat_mode
+    if cat_mode == "＋新規作成":
+        new_cat = st.text_input("新しいカテゴリ名")
+        category = new_cat if new_cat else "未分類"
+    else:
+        category = cat_mode
 
     memo = st.text_area("メモ")
 
+    # ★これが form の中にあることが重要
     submit = st.form_submit_button("追加")
 
+    # =========================
+    # 送信処理
+    # =========================
     if submit:
 
         if category not in base_categories and category not in st.session_state.custom_categories:
-            st.session_state.custom_categories.append(category)
+            if category != "未分類":
+                st.session_state.custom_categories.append(category)
 
         s = {
             "id": str(uuid.uuid4()),
-            "user_id": user_id,
+            "user_id": st.session_state.user_id,
             "title": title,
             "memo": memo,
             "category": category,
