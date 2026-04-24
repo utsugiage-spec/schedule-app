@@ -303,11 +303,17 @@ with col_list:
     sel = next((x for x in schedules if x["id"] == st.session_state.selected_schedule_id), None)
 
     if sel:
-        st.write(sel["title"])
-        st.write(sel["category"])
-        st.write(sel["memo"])
-        st.write(format_dt(sel["start"]))
-        st.write(format_dt(sel["end"]))
+        st.markdown("### 📝 スケジュール詳細")
+
+        st.markdown(f"**📌 タイトル**  \n{sel['title']}")
+        st.markdown(f"**🏷 カテゴリ**  \n{sel['category']}")
+        st.markdown(f"**🗒 メモ**  \n{sel['memo'] if sel['memo'] else '（なし）'}")
+
+        st.markdown(f"**🕒 開始日時**  \n{format_dt(sel['start'])}")
+        st.markdown(f"**⏱ 終了日時**  \n{format_dt(sel['end'])}")
+
+        status = "完了済み" if sel["done"] else "未完了"
+        st.markdown(f"**📍 状態**  \n{status}")
 # =========================================================
 # 追加
 # =========================================================
