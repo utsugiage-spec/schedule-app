@@ -58,9 +58,6 @@ def in_range(task, target_date):
     e = datetime.fromisoformat(task["end"]).date()
     return s <= target_date <= e
 
-def is_holiday_or_weekend(d: date):
-    return d.weekday() >= 5 or jpholiday.is_holiday(d)
-
 # =========================================================
 # auth
 # =========================================================
@@ -128,7 +125,7 @@ def delete_task(task_id):
     conn.commit()
 
 # =========================================================
-# session state
+# session
 # =========================================================
 if "user_id" not in st.session_state:
     st.session_state.user_id = None
@@ -205,9 +202,9 @@ with col_cal:
 
     events = []
 
-    # --------------------------
+    # -------------------------
     # タスク
-    # --------------------------
+    # -------------------------
     for t in tasks:
         color = "#999999" if t["done"] else "#3788d8"
 
@@ -219,9 +216,9 @@ with col_cal:
             "color": color
         })
 
-    # --------------------------
-    # 土日祝ハイライト
-    # --------------------------
+    # -------------------------
+    # 祝日のみ表示
+    # -------------------------
     base = st.session_state.selected_date.replace(day=1)
 
     for i in range(31):
@@ -230,38 +227,17 @@ with col_cal:
         except:
             break
 
-        if is_holiday_or_weekend(d):
-
+        if jpholiday.is_holiday(d):
             events.append({
-                "title": "",
+                "title": f"🎌{jpholiday.is_holiday_name(d)}",
                 "start": str(d),
                 "allDay": True,
-                "color": "#ffe5e5"
+                "color": "#ffcccc"
             })
 
-            if jpholiday.is_holiday(d):
-                events.append({
-                    "title": "🎌祝日",
-                    "start": str(d),
-                    "allDay": True,
-                    "color": "#ffcccc"
-                })
-
-    # --------------------------
-    # 選択日ハイライト（強調）
-    # --------------------------
-    selected = st.session_state.selected_date
-
-    events.append({
-        "title": "📍選択中",
-        "start": str(selected),
-        "allDay": True,
-        "color": "#ffd966"
-    })
-
-    # --------------------------
+    # -------------------------
     # カレンダー描画
-    # --------------------------
+    # -------------------------
     cal_result = calendar(
         events=events,
         key="cal",
@@ -283,14 +259,15 @@ with col_cal:
         }
     )
 
-    # --------------------------
-    # クリック即反映（重要）
-    # --------------------------
+    # -------------------------
+    # 日付クリック（即反映）
+    # -------------------------
     if cal_result and isinstance(cal_result, dict):
         if "dateClick" in cal_result:
             st.session_state.selected_date = parse_date(
                 cal_result["dateClick"]["date"]
             )
+            st.session_state.selected_task_id = None
             st.rerun()
 
 # =========================================================
@@ -300,12 +277,20 @@ with col_task:
     st.subheader("📋 タスク管理")
 
     selected_date = st.date_input("日付選択", st.session_state.selected_date)
-    st.session_state.selected_date = selected_date
+
+    # 🔥 日付変更で詳細も同期
+    if selected_date != st.session_state.selected_date:
+        st.session_state.selected_date = selected_date
+        st.session_state.selected_task_id = None
 
     filtered = [
         t for t in tasks
-        if in_range(t, selected_date)
+        if in_range(t, st.session_state.selected_date)
     ]
+
+    # 🔥 自動で最初のタスク選択
+    if filtered and st.session_state.selected_task_id is None:
+        st.session_state.selected_task_id = filtered[0]["id"]
 
     st.markdown("### タスク一覧")
 
@@ -361,7 +346,6 @@ with st.form("add"):
 
     title = st.text_input("タイトル")
 
-    st.markdown("### 開始")
     c1, c2 = st.columns(2)
 
     with c1:
@@ -369,15 +353,12 @@ with st.form("add"):
     with c2:
         stt = st.time_input("開始時間", time(9, 0))
 
-    st.markdown("### 終了")
     c3, c4 = st.columns(2)
 
     with c3:
         ed = st.date_input("終了日", st.session_state.selected_date)
     with c4:
         ett = st.time_input("終了時間", time(10, 0))
-
-    st.markdown("### カテゴリ")
 
     base_categories = ["仕事", "学校", "趣味"]
     options = base_categories + st.session_state.custom_categories + ["＋新規作成"]
