@@ -2,9 +2,9 @@ import streamlit as st
 import sqlite3
 import hashlib
 import uuid
+import jpholiday
 from datetime import datetime, date, time, timezone, timedelta
 from streamlit_calendar import calendar
-import jpholiday
 
 st.set_page_config(page_title="スケジュール管理", layout="wide")
 
@@ -50,15 +50,15 @@ def parse_date(date_str):
         tzinfo=timezone.utc
     ).astimezone(JST).date()
 
+def format_dt(dt):
+    return datetime.fromisoformat(dt).strftime("%Y/%m/%d %H:%M")
+
 def in_range(task, target_date):
     s = datetime.fromisoformat(task["start"]).date()
     e = datetime.fromisoformat(task["end"]).date()
     return s <= target_date <= e
 
-def format_dt(dt):
-    return datetime.fromisoformat(dt).strftime("%Y/%m/%d %H:%M")
-
-def is_weekend_or_holiday(d: date):
+def is_holiday_or_weekend(d: date):
     return d.weekday() >= 5 or jpholiday.is_holiday(d)
 
 # =========================================================
@@ -128,7 +128,7 @@ def delete_task(task_id):
     conn.commit()
 
 # =========================================================
-# session
+# session state
 # =========================================================
 if "user_id" not in st.session_state:
     st.session_state.user_id = None
@@ -205,6 +205,9 @@ with col_cal:
 
     events = []
 
+    # --------------------------
+    # タスク
+    # --------------------------
     for t in tasks:
         color = "#999999" if t["done"] else "#3788d8"
 
@@ -216,9 +219,9 @@ with col_cal:
             "color": color
         })
 
-    # =====================================================
-    # 土日・祝日ハイライト
-    # =====================================================
+    # --------------------------
+    # 土日祝ハイライト
+    # --------------------------
     base = st.session_state.selected_date.replace(day=1)
 
     for i in range(31):
@@ -227,10 +230,10 @@ with col_cal:
         except:
             break
 
-        if is_weekend_or_holiday(d):
+        if is_holiday_or_weekend(d):
 
             events.append({
-                "title": " ",
+                "title": "",
                 "start": str(d),
                 "allDay": True,
                 "color": "#ffe5e5"
@@ -241,9 +244,24 @@ with col_cal:
                     "title": "🎌祝日",
                     "start": str(d),
                     "allDay": True,
-                    "color": "#ffb3b3"
+                    "color": "#ffcccc"
                 })
 
+    # --------------------------
+    # 選択日ハイライト（強調）
+    # --------------------------
+    selected = st.session_state.selected_date
+
+    events.append({
+        "title": "📍選択中",
+        "start": str(selected),
+        "allDay": True,
+        "color": "#ffd966"
+    })
+
+    # --------------------------
+    # カレンダー描画
+    # --------------------------
     cal_result = calendar(
         events=events,
         key="cal",
@@ -265,9 +283,9 @@ with col_cal:
         }
     )
 
-    # =====================================================
-    # 日付クリック（即反映）
-    # =====================================================
+    # --------------------------
+    # クリック即反映（重要）
+    # --------------------------
     if cal_result and isinstance(cal_result, dict):
         if "dateClick" in cal_result:
             st.session_state.selected_date = parse_date(
@@ -341,30 +359,22 @@ st.subheader("➕ タスク追加")
 
 with st.form("add"):
 
-    col1, col2 = st.columns([4, 1])
-
-    with col1:
-        title = st.text_input("タイトル")
-
-    with col2:
-        submit = st.form_submit_button("追加")
+    title = st.text_input("タイトル")
 
     st.markdown("### 開始")
-    col3, col4 = st.columns(2)
+    c1, c2 = st.columns(2)
 
-    with col3:
+    with c1:
         sd = st.date_input("開始日", st.session_state.selected_date)
-
-    with col4:
+    with c2:
         stt = st.time_input("開始時間", time(9, 0))
 
     st.markdown("### 終了")
-    col5, col6 = st.columns(2)
+    c3, c4 = st.columns(2)
 
-    with col5:
+    with c3:
         ed = st.date_input("終了日", st.session_state.selected_date)
-
-    with col6:
+    with c4:
         ett = st.time_input("終了時間", time(10, 0))
 
     st.markdown("### カテゴリ")
@@ -372,15 +382,16 @@ with st.form("add"):
     base_categories = ["仕事", "学校", "趣味"]
     options = base_categories + st.session_state.custom_categories + ["＋新規作成"]
 
-    category_mode = st.selectbox("カテゴリ選択", options)
+    category_mode = st.selectbox("カテゴリ", options)
 
     if category_mode == "＋新規作成":
         category = st.text_input("新規カテゴリ", "未分類")
     else:
         category = category_mode
 
-    st.markdown("### メモ")
     memo = st.text_area("メモ")
+
+    submit = st.form_submit_button("追加")
 
     if submit:
 
