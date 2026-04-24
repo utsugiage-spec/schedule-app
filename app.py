@@ -3,7 +3,7 @@ import sqlite3
 import hashlib
 import uuid
 import jpholiday
-from datetime import datetime, date, time, timezone, timedelta
+from datetime import datetime, date, time
 from streamlit_calendar import calendar
 
 st.set_page_config(page_title="スケジュール管理", layout="wide")
@@ -42,9 +42,6 @@ conn.commit()
 # =========================================================
 def hash_pw(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
-
-def parse_date(d):
-    return datetime.fromisoformat(d).date()
 
 def format_dt(dt):
     return datetime.fromisoformat(dt).strftime("%Y/%m/%d %H:%M")
@@ -123,9 +120,6 @@ if "selected_date" not in st.session_state:
 if "selected_schedule_id" not in st.session_state:
     st.session_state.selected_schedule_id = None
 
-if "custom_categories" not in st.session_state:
-    st.session_state.custom_categories = []
-
 # =========================================================
 # LOGIN
 # =========================================================
@@ -187,7 +181,6 @@ with col_cal:
 
     events = []
 
-    # スケジュール
     for s in schedules:
         color = "#999999" if s["done"] else "#3788d8"
 
@@ -216,7 +209,7 @@ with col_cal:
                 "color": "#ffcccc"
             })
 
-    # 選択日ハイライト（固定1個）
+    # 選択日
     events.append({
         "id": "selected",
         "title": "📍選択中",
@@ -246,9 +239,16 @@ with col_cal:
         }
     )
 
+    # =====================================================
+    # ⭐ 修正ポイント（1日ズレ解消）
+    # =====================================================
     if cal and isinstance(cal, dict):
         if "dateClick" in cal:
-            st.session_state.selected_date = parse_date(cal["dateClick"]["date"])
+            clicked = cal["dateClick"]["date"]
+
+            # ← ここ重要：文字列をそのままdateへ
+            st.session_state.selected_date = datetime.strptime(clicked, "%Y-%m-%d").date()
+
             st.session_state.selected_schedule_id = None
             st.rerun()
 
@@ -266,9 +266,6 @@ with col_list:
         st.session_state.selected_schedule_id = None
 
     filtered = [s for s in schedules if in_range(s, selected)]
-
-    if filtered and st.session_state.selected_schedule_id is None:
-        st.session_state.selected_schedule_id = filtered[0]["id"]
 
     for s in filtered:
 
@@ -294,21 +291,23 @@ with col_list:
                 st.session_state.selected_schedule_id = None
                 st.rerun()
 
-    st.divider()
+# =========================================================
+# 詳細
+# =========================================================
+st.divider()
+st.subheader("詳細")
 
-    st.subheader("詳細")
+sel = next((x for x in schedules if x["id"] == st.session_state.selected_schedule_id), None)
 
-    sel = next((x for x in schedules if x["id"] == st.session_state.selected_schedule_id), None)
-
-    if sel:
-        st.write(sel["title"])
-        st.write(sel["category"])
-        st.write(sel["memo"])
-        st.write(format_dt(sel["start"]))
-        st.write(format_dt(sel["end"]))
+if sel:
+    st.write(sel["title"])
+    st.write(sel["category"])
+    st.write(sel["memo"])
+    st.write(format_dt(sel["start"]))
+    st.write(format_dt(sel["end"]))
 
 # =========================================================
-# 追加フォーム（カテゴリ復活）
+# 追加
 # =========================================================
 st.divider()
 st.subheader("➕ スケジュール追加")
@@ -330,25 +329,13 @@ with st.form("add"):
         ett = st.time_input("終了時間", time(10))
 
     base = ["仕事", "学校", "趣味"]
-    options = base + st.session_state.custom_categories + ["＋新規作成"]
-
-    mode = st.selectbox("カテゴリ", options)
-
-    new_cat = None
-    if mode == "＋新規作成":
-        new_cat = st.text_input("新カテゴリ")
-
-    category = new_cat if new_cat else mode
+    category = st.selectbox("カテゴリ", base)
 
     memo = st.text_area("メモ")
 
     submit = st.form_submit_button("追加")
 
     if submit:
-
-        if category not in base and category not in st.session_state.custom_categories:
-            if category and category != "＋新規作成":
-                st.session_state.custom_categories.append(category)
 
         add_schedule({
             "id": str(uuid.uuid4()),
