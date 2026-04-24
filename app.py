@@ -154,7 +154,7 @@ with col_title:
     st.title("📅 スケジュール管理")
 
 with col_logout:
-    if st.button("🚪"):
+    if st.button("ログアウト"):
         st.session_state.user_id = None
         st.session_state.selected_task_id = None
         st.rerun()
