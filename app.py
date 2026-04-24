@@ -247,11 +247,14 @@ with col_cal:
     # =====================================================
     if cal and isinstance(cal, dict):
         if "dateClick" in cal:
-            clicked = cal["dateClick"]["date"]
+            clicked_raw = cal["dateClick"]["date"]
 
-            clicked_dt = datetime.fromisoformat(clicked.replace("Z", "+00:00"))
+            clicked_dt = datetime.fromisoformat(clicked_raw.replace("Z", "+00:00"))
+
+            if clicked_dt.tzinfo is not None:
+                clicked_dt = clicked_dt.astimezone(timezone(timedelta(hours=9)))
+
             st.session_state.selected_date = clicked_dt.date()
-
             st.session_state.selected_schedule_id = None
             st.rerun()
 
