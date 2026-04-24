@@ -154,7 +154,7 @@ with col_title:
     st.title("📅 スケジュール管理")
 
 with col_logout:
-    if st.button("ログアウト"):
+    if st.button("🚪 ログアウト"):
         st.session_state.user_id = None
         st.session_state.selected_task_id = None
         st.rerun()
@@ -166,7 +166,7 @@ user_id = st.session_state.user_id
 tasks = load_tasks(user_id)
 
 # =========================================================
-# LAYOUT（カレンダー大きめ）
+# LAYOUT（変更なし）
 # =========================================================
 col_cal, col_task = st.columns([3, 2])
 
@@ -195,7 +195,7 @@ with col_cal:
             "locale": "ja",
             "initialView": "dayGridMonth",
             "headerToolbar": {
-                "left": "prev,next",   # 今日ボタン削除
+                "left": "prev,next",
                 "center": "title",
                 "right": "dayGridMonth,timeGridWeek,timeGridDay,listWeek"
             },
@@ -223,14 +223,39 @@ with col_task:
 
     st.markdown("### タスク一覧")
 
+    # ============================
+    # ★ここが変更ポイント
+    # ============================
     for t in filtered:
         label = "✅ " + t["title"] if t["done"] else t["title"]
 
-        if st.button(label, key=f"sel_{t['id']}"):
-            st.session_state.selected_task_id = t["id"]
+        col_name, col_done, col_del = st.columns([6, 2, 2])
+
+        with col_name:
+            if st.button(label, key=f"sel_{t['id']}"):
+                st.session_state.selected_task_id = t["id"]
+
+        with col_done:
+            if not t["done"]:
+                if st.button("✔", key=f"done_{t['id']}"):
+                    mark_done(t["id"])
+                    st.rerun()
+            else:
+                if st.button("↩", key=f"undo_{t['id']}"):
+                    mark_undone(t["id"])
+                    st.rerun()
+
+        with col_del:
+            if st.button("🗑", key=f"del_{t['id']}"):
+                delete_task(t["id"])
+                st.session_state.selected_task_id = None
+                st.rerun()
 
     st.divider()
 
+    # ============================
+    # 詳細（残す）
+    # ============================
     st.markdown("### 詳細")
 
     task = next((x for x in tasks if x["id"] == st.session_state.selected_task_id), None)
@@ -246,23 +271,8 @@ with col_task:
         st.write(f"**終了:** {end}")
         st.write(f"**状態:** {'完了' if task['done'] else '未完了'}")
 
-        colA, colB = st.columns(2)
-
-        with colA:
-            if not task["done"]:
-                if st.button("完了", key=f"d_{task['id']}"):
-                    mark_done(task["id"])
-                    st.rerun()
-            else:
-                if st.button("戻す", key=f"u_{task['id']}"):
-                    mark_undone(task["id"])
-                    st.rerun()
-
-        with colB:
-            if st.button("削除", key=f"x_{task['id']}"):
-                delete_task(task["id"])
-                st.session_state.selected_task_id = None
-                st.rerun()
+    else:
+        st.info("タスクをクリックしてください")
 
 # =========================================================
 # タスク追加
