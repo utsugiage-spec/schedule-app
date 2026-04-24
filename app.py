@@ -202,9 +202,9 @@ with col_cal:
 
     events = []
 
-    # -------------------------
+    # =========================
     # タスク
-    # -------------------------
+    # =========================
     for t in tasks:
         color = "#999999" if t["done"] else "#3788d8"
 
@@ -216,9 +216,9 @@ with col_cal:
             "color": color
         })
 
-    # -------------------------
+    # =========================
     # 祝日のみ表示
-    # -------------------------
+    # =========================
     base = st.session_state.selected_date.replace(day=1)
 
     for i in range(31):
@@ -235,9 +235,22 @@ with col_cal:
                 "color": "#ffcccc"
             })
 
-    # -------------------------
+    # =========================
+    # 選択日ハイライト（重要：常に1つだけ）
+    # =========================
+    selected = st.session_state.selected_date
+
+    events.append({
+        "id": "selected-day",
+        "title": "📍選択中",
+        "start": str(selected),
+        "allDay": True,
+        "color": "#ffd54f"  # しっかり目立つ黄色
+    })
+
+    # =========================
     # カレンダー描画
-    # -------------------------
+    # =========================
     cal_result = calendar(
         events=events,
         key="cal",
@@ -259,15 +272,19 @@ with col_cal:
         }
     )
 
-    # -------------------------
-    # 日付クリック（即反映）
-    # -------------------------
+    # =========================
+    # クリック即反映（同期維持）
+    # =========================
     if cal_result and isinstance(cal_result, dict):
         if "dateClick" in cal_result:
+
             st.session_state.selected_date = parse_date(
                 cal_result["dateClick"]["date"]
             )
+
+            # タスク詳細も同期
             st.session_state.selected_task_id = None
+
             st.rerun()
 
 # =========================================================
