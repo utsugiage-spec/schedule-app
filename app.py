@@ -116,7 +116,7 @@ if "selected_task_id" not in st.session_state:
     st.session_state.selected_task_id = None
 
 # =========================================================
-# login UI
+# login
 # =========================================================
 if st.session_state.user_id is None:
 
@@ -139,7 +139,7 @@ if st.session_state.user_id is None:
     else:
         if st.button("登録"):
             if register(username, password):
-                st.success("登録完了")
+                st.success("登録成功")
             else:
                 st.error("失敗")
 
@@ -160,10 +160,13 @@ if st.button("ログアウト"):
 tasks = load_tasks(user_id)
 
 # =========================================================
-# カレンダー（左）
+# layout
 # =========================================================
 col_cal, col_task = st.columns([2, 3])
 
+# =========================================================
+# カレンダー（左）
+# =========================================================
 with col_cal:
     st.subheader("📅 カレンダー")
 
@@ -179,26 +182,26 @@ with col_cal:
             "color": color
         })
 
-calendar(
-    events=events,
-    key="cal",
-    options={
-        "locale": "ja",
-        "headerToolbar": {
-            "left": "prev,next today",
-            "center": "title",
-            "right": "dayGridMonth,timeGridWeek,timeGridDay,listWeek"
-        },
-        "initialView": "dayGridMonth",
-        "buttonText": {
-            "today": "今日",
-            "month": "月",
-            "week": "週",
-            "day": "日",
-            "list": "一覧"
+    calendar(
+        events=events,
+        key="cal",
+        options={
+            "locale": "ja",
+            "initialView": "dayGridMonth",
+            "headerToolbar": {
+                "left": "prev,next today",
+                "center": "title",
+                "right": "dayGridMonth,timeGridWeek,timeGridDay,listWeek"
+            },
+            "buttonText": {
+                "today": "今日",
+                "month": "月",
+                "week": "週",
+                "day": "日",
+                "list": "一覧"
+            }
         }
-    }
-)
+    )
 
 # =========================================================
 # タスク管理（右）
@@ -206,15 +209,13 @@ calendar(
 with col_task:
     st.subheader("📋 タスク管理")
 
-    # ---------------- 日付フィルタ ----------------
-    selected_date = st.date_input("日付を選択", date.today())
+    selected_date = st.date_input("日付選択", date.today())
 
     filtered = [
         t for t in tasks
         if datetime.fromisoformat(t["start"]).date() == selected_date
     ]
 
-    # ---------------- 一覧 ----------------
     st.markdown("### タスク一覧")
 
     for t in filtered:
@@ -225,7 +226,6 @@ with col_task:
 
     st.divider()
 
-    # ---------------- 詳細 ----------------
     st.markdown("### 詳細")
 
     task = next((x for x in tasks if x["id"] == st.session_state.selected_task_id), None)
@@ -258,9 +258,6 @@ with col_task:
                 delete_task(task["id"])
                 st.session_state.selected_task_id = None
                 st.rerun()
-
-    else:
-        st.info("日付を選んでタスクをクリックしてください")
 
 # =========================================================
 # 追加
