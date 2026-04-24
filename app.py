@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS users (
 """)
 
 c.execute("""
-CREATE TABLE IF NOT EXISTS tasks (
+CREATE TABLE IF NOT EXISTS schedules (
     id TEXT PRIMARY KEY,
     user_id TEXT,
     title TEXT,
@@ -53,9 +53,9 @@ def parse_date(date_str):
 def format_dt(dt):
     return datetime.fromisoformat(dt).strftime("%Y/%m/%d %H:%M")
 
-def in_range(task, target_date):
-    s = datetime.fromisoformat(task["start"]).date()
-    e = datetime.fromisoformat(task["end"]).date()
+def in_range(sch, target_date):
+    s = datetime.fromisoformat(sch["start"]).date()
+    e = datetime.fromisoformat(sch["end"]).date()
     return s <= target_date <= e
 
 # =========================================================
@@ -82,21 +82,21 @@ def login(username, password):
     return None
 
 # =========================================================
-# tasks
+# schedules
 # =========================================================
-def add_task(task):
-    c.execute("INSERT INTO tasks VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (
-        task["id"], task["user_id"], task["title"],
-        task["memo"], task["category"],
-        task["start"], task["end"], int(task["done"])
+def add_schedule(s):
+    c.execute("INSERT INTO schedules VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (
+        s["id"], s["user_id"], s["title"],
+        s["memo"], s["category"],
+        s["start"], s["end"], int(s["done"])
     ))
     conn.commit()
 
-def load_tasks(user_id):
-    c.execute("SELECT * FROM tasks WHERE user_id=?", (user_id,))
+def load_schedules(user_id):
+    c.execute("SELECT * FROM schedules WHERE user_id=?", (user_id,))
     rows = c.fetchall()
 
-    tasks = [
+    schedules = [
         {
             "id": r[0],
             "user_id": r[1],
@@ -110,18 +110,18 @@ def load_tasks(user_id):
         for r in rows
     ]
 
-    return sorted(tasks, key=lambda t: t["start"])
+    return sorted(schedules, key=lambda x: x["start"])
 
-def mark_done(task_id):
-    c.execute("UPDATE tasks SET done=1 WHERE id=?", (task_id,))
+def mark_done(id_):
+    c.execute("UPDATE schedules SET done=1 WHERE id=?", (id_,))
     conn.commit()
 
-def mark_undone(task_id):
-    c.execute("UPDATE tasks SET done=0 WHERE id=?", (task_id,))
+def mark_undone(id_):
+    c.execute("UPDATE schedules SET done=0 WHERE id=?", (id_,))
     conn.commit()
 
-def delete_task(task_id):
-    c.execute("DELETE FROM tasks WHERE id=?", (task_id,))
+def delete_schedule(id_):
+    c.execute("DELETE FROM schedules WHERE id=?", (id_,))
     conn.commit()
 
 # =========================================================
@@ -130,8 +130,8 @@ def delete_task(task_id):
 if "user_id" not in st.session_state:
     st.session_state.user_id = None
 
-if "selected_task_id" not in st.session_state:
-    st.session_state.selected_task_id = None
+if "selected_schedule_id" not in st.session_state:
+    st.session_state.selected_schedule_id = None
 
 if "selected_date" not in st.session_state:
     st.session_state.selected_date = date.today()
@@ -180,45 +180,45 @@ with col1:
 with col2:
     if st.button("🚪 ログアウト"):
         st.session_state.user_id = None
-        st.session_state.selected_task_id = None
+        st.session_state.selected_schedule_id = None
         st.rerun()
 
 # =========================================================
 # DATA
 # =========================================================
 user_id = st.session_state.user_id
-tasks = load_tasks(user_id)
+schedules = load_schedules(user_id)
 
 # =========================================================
 # LAYOUT
 # =========================================================
-col_cal, col_task = st.columns([3.5, 1.5])
+col_cal, col_list = st.columns([3.5, 1.5])
 
 # =========================================================
 # カレンダー
 # =========================================================
 with col_cal:
-    st.subheader("📅 カレンダー")
+    st.subheader("📅 スケジュールカレンダー")
 
     events = []
 
-    # =========================
-    # タスク
-    # =========================
-    for t in tasks:
-        color = "#999999" if t["done"] else "#3788d8"
+    # -------------------------
+    # スケジュール
+    # -------------------------
+    for s in schedules:
+        color = "#999999" if s["done"] else "#3788d8"
 
         events.append({
-            "id": t["id"],
-            "title": f"[{t['category']}] {t['title']}",
-            "start": t["start"],
-            "end": t["end"],
+            "id": s["id"],
+            "title": f"[{s['category']}] {s['title']}",
+            "start": s["start"],
+            "end": s["end"],
             "color": color
         })
 
-    # =========================
-    # 祝日のみ表示
-    # =========================
+    # -------------------------
+    # 祝日のみ
+    # -------------------------
     base = st.session_state.selected_date.replace(day=1)
 
     for i in range(31):
@@ -235,22 +235,22 @@ with col_cal:
                 "color": "#ffcccc"
             })
 
-    # =========================
-    # 選択日ハイライト（重要：常に1つだけ）
-    # =========================
+    # -------------------------
+    # 選択日ハイライト（必ず残す）
+    # -------------------------
     selected = st.session_state.selected_date
 
     events.append({
-        "id": "selected-day",
+        "id": "selected",
         "title": "📍選択中",
         "start": str(selected),
         "allDay": True,
-        "color": "#ffd54f"  # しっかり目立つ黄色
+        "color": "#ffd54f"
     })
 
-    # =========================
-    # カレンダー描画
-    # =========================
+    # -------------------------
+    # カレンダー
+    # -------------------------
     cal_result = calendar(
         events=events,
         key="cal",
@@ -272,96 +272,87 @@ with col_cal:
         }
     )
 
-    # =========================
-    # クリック即反映（同期維持）
-    # =========================
+    # -------------------------
+    # クリック同期
+    # -------------------------
     if cal_result and isinstance(cal_result, dict):
         if "dateClick" in cal_result:
-
             st.session_state.selected_date = parse_date(
                 cal_result["dateClick"]["date"]
             )
-
-            # タスク詳細も同期
-            st.session_state.selected_task_id = None
-
+            st.session_state.selected_schedule_id = None
             st.rerun()
 
 # =========================================================
-# タスク管理
+# スケジュール一覧
 # =========================================================
-with col_task:
-    st.subheader("📋 タスク管理")
+with col_list:
+    st.subheader("📋 スケジュール一覧")
 
     selected_date = st.date_input("日付選択", st.session_state.selected_date)
 
-    # 🔥 日付変更で詳細も同期
     if selected_date != st.session_state.selected_date:
         st.session_state.selected_date = selected_date
-        st.session_state.selected_task_id = None
+        st.session_state.selected_schedule_id = None
 
     filtered = [
-        t for t in tasks
-        if in_range(t, st.session_state.selected_date)
+        s for s in schedules
+        if in_range(s, st.session_state.selected_date)
     ]
 
-    # 🔥 自動で最初のタスク選択
-    if filtered and st.session_state.selected_task_id is None:
-        st.session_state.selected_task_id = filtered[0]["id"]
+    if filtered and st.session_state.selected_schedule_id is None:
+        st.session_state.selected_schedule_id = filtered[0]["id"]
 
-    st.markdown("### タスク一覧")
+    for s in filtered:
+        label = f"{'✅ ' if s['done'] else ''}{s['title']}"
 
-    for t in filtered:
-        label = f"{'✅ ' if t['done'] else ''}{t['title']}"
+        c1, c2, c3 = st.columns([6, 2, 2])
 
-        col_a, col_b, col_c = st.columns([6, 2, 2])
+        with c1:
+            if st.button(label, key=f"sel_{s['id']}"):
+                st.session_state.selected_schedule_id = s["id"]
 
-        with col_a:
-            if st.button(label, key=f"sel_{t['id']}"):
-                st.session_state.selected_task_id = t["id"]
-
-        with col_b:
-            if not t["done"]:
-                if st.button("✔", key=f"d_{t['id']}"):
-                    mark_done(t["id"])
+        with c2:
+            if not s["done"]:
+                if st.button("✔", key=f"d_{s['id']}"):
+                    mark_done(s["id"])
                     st.rerun()
             else:
-                if st.button("↩", key=f"u_{t['id']}"):
-                    mark_undone(t["id"])
+                if st.button("↩", key=f"u_{s['id']}"):
+                    mark_undone(s["id"])
                     st.rerun()
 
-        with col_c:
-            if st.button("🗑", key=f"x_{t['id']}"):
-                delete_task(t["id"])
-                st.session_state.selected_task_id = None
+        with c3:
+            if st.button("🗑", key=f"x_{s['id']}"):
+                delete_schedule(s["id"])
+                st.session_state.selected_schedule_id = None
                 st.rerun()
 
     st.divider()
 
-    st.markdown("### 詳細")
+    st.subheader("📄 詳細")
 
-    task = next((x for x in tasks if x["id"] == st.session_state.selected_task_id), None)
+    sel = next((x for x in schedules if x["id"] == st.session_state.selected_schedule_id), None)
 
-    if task:
-        st.write(f"**タイトル:** {task['title']}")
-        st.write(f"**カテゴリ:** {task['category']}")
-        st.write(f"**メモ:** {task['memo']}")
-        st.write(f"**開始:** {format_dt(task['start'])}")
-        st.write(f"**終了:** {format_dt(task['end'])}")
-        st.write(f"**状態:** {'完了' if task['done'] else '未完了'}")
-
+    if sel:
+        st.write(f"**タイトル:** {sel['title']}")
+        st.write(f"**カテゴリ:** {sel['category']}")
+        st.write(f"**メモ:** {sel['memo']}")
+        st.write(f"**開始:** {format_dt(sel['start'])}")
+        st.write(f"**終了:** {format_dt(sel['end'])}")
+        st.write(f"**状態:** {'完了' if sel['done'] else '未完了'}")
     else:
-        st.info("タスクを選択してください")
+        st.info("スケジュールを選択してください")
 
 # =========================================================
-# タスク追加
+# 追加
 # =========================================================
 st.divider()
-st.subheader("➕ タスク追加")
+st.subheader("➕ スケジュール追加")
 
 with st.form("add"):
 
-    title = st.text_input("タイトル")
+    title = st.text_input("スケジュール名")
 
     c1, c2 = st.columns(2)
 
@@ -380,12 +371,12 @@ with st.form("add"):
     base_categories = ["仕事", "学校", "趣味"]
     options = base_categories + st.session_state.custom_categories + ["＋新規作成"]
 
-    category_mode = st.selectbox("カテゴリ", options)
+    cat_mode = st.selectbox("カテゴリ", options)
 
-    if category_mode == "＋新規作成":
+    if cat_mode == "＋新規作成":
         category = st.text_input("新規カテゴリ", "未分類")
     else:
-        category = category_mode
+        category = cat_mode
 
     memo = st.text_area("メモ")
 
@@ -396,7 +387,7 @@ with st.form("add"):
         if category not in base_categories and category not in st.session_state.custom_categories:
             st.session_state.custom_categories.append(category)
 
-        task = {
+        s = {
             "id": str(uuid.uuid4()),
             "user_id": user_id,
             "title": title,
@@ -407,5 +398,5 @@ with st.form("add"):
             "done": False
         }
 
-        add_task(task)
+        add_schedule(s)
         st.rerun()
