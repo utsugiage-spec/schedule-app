@@ -2,7 +2,7 @@ import streamlit as st
 import sqlite3
 import hashlib
 import uuid
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timezone, timedelta
 from streamlit_calendar import calendar
 
 st.set_page_config(page_title="スケジュール管理", layout="wide")
@@ -39,8 +39,15 @@ conn.commit()
 # =========================================================
 # utils
 # =========================================================
+JST = timezone(timedelta(hours=9))
+
 def hash_pw(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
+
+def parse_date_safe(date_str):
+    return datetime.fromisoformat(date_str).replace(
+        tzinfo=timezone.utc
+    ).astimezone(JST).date()
 
 def in_range(task, target_date):
     s = datetime.fromisoformat(task["start"]).date()
@@ -117,7 +124,7 @@ def delete_task(task_id):
     conn.commit()
 
 # =========================================================
-# session
+# session state
 # =========================================================
 if "user_id" not in st.session_state:
     st.session_state.user_id = None
@@ -150,14 +157,14 @@ if st.session_state.user_id is None:
                 st.session_state.user_id = uid
                 st.rerun()
             else:
-                st.error("失敗")
+                st.error("ログイン失敗")
 
     else:
         if st.button("登録"):
             if register(username, password):
                 st.success("登録成功")
             else:
-                st.error("失敗")
+                st.error("登録失敗")
 
     st.stop()
 
@@ -193,6 +200,7 @@ with col_cal:
     st.subheader("📅 カレンダー")
 
     events = []
+
     for t in tasks:
         color = "#999999" if t["done"] else "#3788d8"
 
@@ -203,6 +211,14 @@ with col_cal:
             "end": t["end"],
             "color": color
         })
+
+    # 🔥 選択日ハイライト（疑似）
+    events.append({
+        "title": "📍 選択日",
+        "start": str(st.session_state.selected_date),
+        "allDay": True,
+        "color": "#ffcc00"
+    })
 
     cal_result = calendar(
         events=events,
@@ -226,13 +242,13 @@ with col_cal:
     )
 
     # =====================================================
-    # 日付クリック処理
+    # 日付クリック（JST補正あり）
     # =====================================================
     if cal_result and isinstance(cal_result, dict):
         if "dateClick" in cal_result:
-            st.session_state.selected_date = datetime.fromisoformat(
+            st.session_state.selected_date = parse_date_safe(
                 cal_result["dateClick"]["date"]
-            ).date()
+            )
 
 # =========================================================
 # タスク管理
@@ -293,7 +309,7 @@ with col_task:
         st.info("タスクを選択してください")
 
 # =========================================================
-# タスク追加（クリック日反映）
+# タスク追加
 # =========================================================
 st.divider()
 st.subheader("➕ タスク追加")
@@ -326,7 +342,6 @@ with st.form("add"):
     with col6:
         ett = st.time_input("終了時間", time(10, 0))
 
-    # カテゴリ
     st.markdown("### カテゴリ")
 
     base_categories = ["仕事", "学校", "趣味"]
@@ -339,7 +354,6 @@ with st.form("add"):
     else:
         category = category_mode
 
-    # メモ
     st.markdown("### メモ")
     memo = st.text_area("メモ")
 
