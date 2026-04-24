@@ -264,13 +264,9 @@ with col_list:
 
     selected = st.date_input("日付", st.session_state.selected_date)
 
-    # =====================================================
-    # ★ 修正②：詳細ズレ防止（rerun追加のみ）
-    # =====================================================
     if selected != st.session_state.selected_date:
         st.session_state.selected_date = selected
         st.session_state.selected_schedule_id = None
-        st.rerun()
 
     filtered = [s for s in schedules if in_range(s, selected)]
 
@@ -298,21 +294,20 @@ with col_list:
                 st.session_state.selected_schedule_id = None
                 st.rerun()
 
-# =========================================================
-# 詳細
-# =========================================================
-st.divider()
-st.subheader("詳細")
+    # =====================================================
+    # ⭐ ここが移動した「詳細」
+    # =====================================================
+    st.divider()
+    st.subheader("詳細")
 
-sel = next((x for x in schedules if x["id"] == st.session_state.selected_schedule_id), None)
+    sel = next((x for x in schedules if x["id"] == st.session_state.selected_schedule_id), None)
 
-if sel:
-    st.write(sel["title"])
-    st.write(sel["category"])
-    st.write(sel["memo"])
-    st.write(format_dt(sel["start"]))
-    st.write(format_dt(sel["end"]))
-
+    if sel:
+        st.write(sel["title"])
+        st.write(sel["category"])
+        st.write(sel["memo"])
+        st.write(format_dt(sel["start"]))
+        st.write(format_dt(sel["end"]))
 # =========================================================
 # 追加
 # =========================================================
