@@ -116,11 +116,11 @@ if "selected_task_id" not in st.session_state:
     st.session_state.selected_task_id = None
 
 # =========================================================
-# login
+# LOGIN
 # =========================================================
 if st.session_state.user_id is None:
 
-    st.title("🔐 ログイン")
+    st.title("🔐 スケジュール管理")
 
     mode = st.radio("選択", ["ログイン", "新規登録"])
 
@@ -134,7 +134,7 @@ if st.session_state.user_id is None:
                 st.session_state.user_id = uid
                 st.rerun()
             else:
-                st.error("失敗")
+                st.error("ログイン失敗")
 
     else:
         if st.button("登録"):
@@ -146,23 +146,29 @@ if st.session_state.user_id is None:
     st.stop()
 
 # =========================================================
-# main
+# HEADER（右上ログアウト）
+# =========================================================
+col_title, col_logout = st.columns([8, 1])
+
+with col_title:
+    st.title("📅 スケジュール管理")
+
+with col_logout:
+    if st.button("🚪"):
+        st.session_state.user_id = None
+        st.session_state.selected_task_id = None
+        st.rerun()
+
+# =========================================================
+# DATA
 # =========================================================
 user_id = st.session_state.user_id
-
-st.title("📅 スケジュール管理")
-
-if st.button("ログアウト"):
-    st.session_state.user_id = None
-    st.session_state.selected_task_id = None
-    st.rerun()
-
 tasks = load_tasks(user_id)
 
 # =========================================================
-# layout
+# LAYOUT（カレンダー大きめ）
 # =========================================================
-col_cal, col_task = st.columns([2, 3])
+col_cal, col_task = st.columns([3, 2])
 
 # =========================================================
 # カレンダー（左）
@@ -189,12 +195,11 @@ with col_cal:
             "locale": "ja",
             "initialView": "dayGridMonth",
             "headerToolbar": {
-                "left": "prev,next today",
+                "left": "prev,next",   # 今日ボタン削除
                 "center": "title",
                 "right": "dayGridMonth,timeGridWeek,timeGridDay,listWeek"
             },
             "buttonText": {
-                "today": "今日",
                 "month": "月",
                 "week": "週",
                 "day": "日",
@@ -260,7 +265,7 @@ with col_task:
                 st.rerun()
 
 # =========================================================
-# 追加
+# タスク追加
 # =========================================================
 st.divider()
 st.subheader("➕ タスク追加")
