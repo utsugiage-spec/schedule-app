@@ -43,12 +43,12 @@ def hash_pw(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
 
 def in_range(task, target_date):
-    s = datetime.fromisoformat(task["start"])
-    e = datetime.fromisoformat(task["end"])
-    return s.date() <= target_date <= e.date()
+    s = datetime.fromisoformat(task["start"]).date()
+    e = datetime.fromisoformat(task["end"]).date()
+    return s <= target_date <= e
 
-def format_dt(dt_str):
-    return datetime.fromisoformat(dt_str).strftime("%Y/%m/%d %H:%M")
+def format_dt(dt):
+    return datetime.fromisoformat(dt).strftime("%Y/%m/%d %H:%M")
 
 # =========================================================
 # auth
@@ -88,7 +88,7 @@ def load_tasks(user_id):
     c.execute("SELECT * FROM tasks WHERE user_id=?", (user_id,))
     rows = c.fetchall()
 
-    return [
+    tasks = [
         {
             "id": r[0],
             "user_id": r[1],
@@ -101,6 +101,9 @@ def load_tasks(user_id):
         }
         for r in rows
     ]
+
+    # ⭐ 時刻ソート（重要）
+    return sorted(tasks, key=lambda t: t["start"])
 
 def mark_done(task_id):
     c.execute("UPDATE tasks SET done=1 WHERE id=?", (task_id,))
@@ -142,7 +145,7 @@ if st.session_state.user_id is None:
                 st.session_state.user_id = uid
                 st.rerun()
             else:
-                st.error("失敗")
+                st.error("ログイン失敗")
 
     else:
         if st.button("登録"):
@@ -275,7 +278,7 @@ with col_task:
         st.info("タスクを選択してください")
 
 # =========================================================
-# タスク追加（期間対応）
+# タスク追加（カテゴリ：選択＋自由入力）
 # =========================================================
 st.divider()
 st.subheader("➕ タスク追加（期間対応）")
@@ -283,15 +286,23 @@ st.subheader("➕ タスク追加（期間対応）")
 with st.form("add"):
     title = st.text_input("タイトル")
     memo = st.text_area("メモ")
-    category = st.text_input("カテゴリ", "未分類")
+
+    # カテゴリ（既存＋自由入力）
+    existing_categories = sorted(list(set([t["category"] for t in tasks])))
+    category_mode = st.radio("カテゴリ", ["既存から選択", "新規作成"])
+
+    if category_mode == "既存から選択" and existing_categories:
+        category = st.selectbox("カテゴリ選択", existing_categories)
+    else:
+        category = st.text_input("新規カテゴリ", "未分類")
 
     st.markdown("#### 開始")
-    sd = st.date_input("開始日", date.today(), key="sd")
-    stt = st.time_input("開始時刻", time(9, 0), key="stt")
+    sd = st.date_input("開始日", date.today())
+    stt = st.time_input("開始時刻", time(9, 0))
 
     st.markdown("#### 終了")
-    ed = st.date_input("終了日", date.today(), key="ed")
-    ett = st.time_input("終了時刻", time(10, 0), key="ett")
+    ed = st.date_input("終了日", date.today())
+    ett = st.time_input("終了時刻", time(10, 0))
 
     if st.form_submit_button("追加"):
         task = {
