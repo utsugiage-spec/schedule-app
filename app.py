@@ -2,7 +2,7 @@ import streamlit as st
 import sqlite3
 import hashlib
 import uuid
-from datetime import datetime, date, time, timedelta
+from datetime import datetime, date, timedelta
 from streamlit_calendar import calendar
 
 st.set_page_config(page_title="スケジュール管理", layout="wide")
@@ -119,7 +119,7 @@ if "selected_task_id" not in st.session_state:
 # =========================================================
 if st.session_state.user_id is None:
 
-    st.title("🔐 ログイン / 新規登録")
+    st.title("🔐 スケジュール管理ログイン")
 
     mode = st.radio("選択", ["ログイン", "新規登録"])
 
@@ -141,12 +141,12 @@ if st.session_state.user_id is None:
             if register(username, password):
                 st.success("登録成功（ログインしてください）")
             else:
-                st.error("このユーザー名は既に使われています")
+                st.error("ユーザー名が既に存在します")
 
     st.stop()
 
 # =========================================================
-# メイン画面
+# メイン
 # =========================================================
 user_id = st.session_state.user_id
 
@@ -160,32 +160,34 @@ if st.button("ログアウト"):
 tasks = load_tasks(user_id)
 
 # =========================================================
-# カレンダー
+# レイアウト（左：カレンダー / 右：タスク）
 # =========================================================
-events = []
-for t in tasks:
-    color = "#999999" if t["done"] else "#3788d8"
+col_cal, col_task = st.columns([2, 3])
 
-    events.append({
-        "id": t["id"],
-        "title": f"[{t['category']}] {t['title']}",
-        "start": t["start"],
-        "end": t["end"],
-        "color": color
-    })
+# ---------------- 左：カレンダー ----------------
+with col_cal:
+    st.subheader("📅 カレンダー")
 
-calendar(events=events, key="calendar")
+    events = []
+    for t in tasks:
+        color = "#999999" if t["done"] else "#3788d8"
 
-# =========================================================
-# 左右レイアウト
-# =========================================================
-st.subheader("タスク管理")
+        events.append({
+            "id": t["id"],
+            "title": f"[{t['category']}] {t['title']}",
+            "start": t["start"],
+            "end": t["end"],
+            "color": color
+        })
 
-col1, col2 = st.columns([2, 3])
+    calendar(events=events, key="calendar")
 
-# ---------------- 左：一覧 ----------------
-with col1:
-    st.markdown("### 📋 タスク一覧")
+# ---------------- 右：タスク管理 ----------------
+with col_task:
+    st.subheader("📋 タスク管理")
+
+    # 一覧
+    st.markdown("### 一覧")
 
     for t in tasks:
         label = "✅ " + t["title"] if t["done"] else t["title"]
@@ -193,9 +195,10 @@ with col1:
         if st.button(label, key=f"select_{t['id']}"):
             st.session_state.selected_task_id = t["id"]
 
-# ---------------- 右：詳細 ----------------
-with col2:
-    st.markdown("### 📌 詳細")
+    st.divider()
+
+    # 詳細
+    st.markdown("### 詳細")
 
     task = next((x for x in tasks if x["id"] == st.session_state.selected_task_id), None)
 
@@ -224,15 +227,17 @@ with col2:
                 delete_task(task["id"])
                 st.session_state.selected_task_id = None
                 st.rerun()
+
     else:
-        st.info("左のタスクをクリックしてください")
+        st.info("カレンダーまたは一覧からタスクを選択してください")
 
 # =========================================================
 # タスク追加
 # =========================================================
-st.subheader("タスク追加")
+st.divider()
+st.subheader("➕ タスク追加")
 
-with st.form("add"):
+with st.form("add_task"):
     title = st.text_input("タイトル")
     memo = st.text_area("メモ")
     category = st.text_input("カテゴリ", "未分類")
@@ -254,6 +259,10 @@ with st.form("add"):
             "end": datetime.combine(d, etime).isoformat(),
             "done": False
         }
+
+        add_task(task)
+        st.success("タスクを追加しました")
+        st.rerun()
 
         add_task(task)
         st.success("追加しました")
