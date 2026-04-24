@@ -4,6 +4,7 @@ import hashlib
 import uuid
 from datetime import datetime, date, time, timezone, timedelta
 from streamlit_calendar import calendar
+import jpholiday
 
 st.set_page_config(page_title="スケジュール管理", layout="wide")
 
@@ -44,7 +45,7 @@ JST = timezone(timedelta(hours=9))
 def hash_pw(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
 
-def parse_date_safe(date_str):
+def parse_date(date_str):
     return datetime.fromisoformat(date_str).replace(
         tzinfo=timezone.utc
     ).astimezone(JST).date()
@@ -56,6 +57,9 @@ def in_range(task, target_date):
 
 def format_dt(dt):
     return datetime.fromisoformat(dt).strftime("%Y/%m/%d %H:%M")
+
+def is_weekend_or_holiday(d: date):
+    return d.weekday() >= 5 or jpholiday.is_holiday(d)
 
 # =========================================================
 # auth
@@ -124,7 +128,7 @@ def delete_task(task_id):
     conn.commit()
 
 # =========================================================
-# session state
+# session
 # =========================================================
 if "user_id" not in st.session_state:
     st.session_state.user_id = None
@@ -212,13 +216,33 @@ with col_cal:
             "color": color
         })
 
-    # 🔥 選択日ハイライト（疑似）
-    events.append({
-        "title": "📍 選択日",
-        "start": str(st.session_state.selected_date),
-        "allDay": True,
-        "color": "#ffcc00"
-    })
+    # =====================================================
+    # 土日・祝日ハイライト
+    # =====================================================
+    base = st.session_state.selected_date.replace(day=1)
+
+    for i in range(31):
+        try:
+            d = base.replace(day=i + 1)
+        except:
+            break
+
+        if is_weekend_or_holiday(d):
+
+            events.append({
+                "title": " ",
+                "start": str(d),
+                "allDay": True,
+                "color": "#ffe5e5"
+            })
+
+            if jpholiday.is_holiday(d):
+                events.append({
+                    "title": "🎌祝日",
+                    "start": str(d),
+                    "allDay": True,
+                    "color": "#ffb3b3"
+                })
 
     cal_result = calendar(
         events=events,
@@ -242,13 +266,14 @@ with col_cal:
     )
 
     # =====================================================
-    # 日付クリック（JST補正あり）
+    # 日付クリック（即反映）
     # =====================================================
     if cal_result and isinstance(cal_result, dict):
         if "dateClick" in cal_result:
-            st.session_state.selected_date = parse_date_safe(
+            st.session_state.selected_date = parse_date(
                 cal_result["dateClick"]["date"]
             )
+            st.rerun()
 
 # =========================================================
 # タスク管理
