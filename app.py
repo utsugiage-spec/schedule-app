@@ -319,18 +319,62 @@ with st.form("add"):
     with col6:
         ett = st.time_input("終了時間", time(10, 0))
 
-    # カテゴリ
-    st.markdown("### カテゴリ")
 
-    base_categories = ["仕事", "学校", "趣味"]
-    all_categories = base_categories + st.session_state.custom_categories + ["＋新規作成"]
+st.markdown("### カテゴリ")
 
-    category_mode = st.selectbox("カテゴリ選択", all_categories)
+# ===============================
+# 初期カテゴリ
+# ===============================
+base_categories = ["仕事", "学校", "趣味"]
 
-    if category_mode == "＋新規作成":
-        category = st.text_input("新しいカテゴリ名", "未分類")
-    else:
-        category = category_mode
+# ===============================
+# カスタムカテゴリ保存領域
+# ===============================
+if "custom_categories" not in st.session_state:
+    st.session_state.custom_categories = []
+
+if "new_category_input" not in st.session_state:
+    st.session_state.new_category_input = ""
+
+# ===============================
+# 全カテゴリ
+# ===============================
+all_categories = base_categories + st.session_state.custom_categories
+options = all_categories + ["＋新規作成"]
+
+# ===============================
+# セレクトボックス
+# ===============================
+category_mode = st.selectbox(
+    "カテゴリ選択",
+    options,
+    key="category_select"
+)
+
+# ===============================
+# 新規作成UI（ここが重要）
+# ===============================
+if category_mode == "＋新規作成":
+
+    st.info("新しいカテゴリを入力してください")
+
+    new_category = st.text_input(
+        "カテゴリ名",
+        key="new_category_input"
+    )
+
+    # まだ空なら仮置き
+    category = new_category if new_category else "未分類"
+
+    # 保存ボタン（明示的に確定させる）
+    if st.button("カテゴリを追加"):
+        if new_category and new_category not in st.session_state.custom_categories:
+            st.session_state.custom_categories.append(new_category)
+            st.success(f"カテゴリ「{new_category}」を追加しました")
+            st.rerun()
+
+else:
+    category = category_mode
 
     # メモ（重要：保持）
     st.markdown("### メモ")
