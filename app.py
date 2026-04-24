@@ -89,7 +89,7 @@ def load(uid):
     ]
 
 # =========================================================
-# session_state
+# session
 # =========================================================
 if "user_id" not in st.session_state:
     st.session_state.user_id = None
@@ -103,14 +103,13 @@ if "selected_schedule_id" not in st.session_state:
 if "custom_categories" not in st.session_state:
     st.session_state.custom_categories = []
 
-if "category_mode" not in st.session_state:
-    st.session_state.category_mode = "仕事"
-
 # =========================================================
-# LOGIN（省略簡略）
+# LOGIN
 # =========================================================
 if st.session_state.user_id is None:
+
     st.title("ログイン")
+
     u = st.text_input("ユーザー")
     p = st.text_input("パスワード", type="password")
 
@@ -128,7 +127,7 @@ if st.session_state.user_id is None:
 col1, col2 = st.columns([8, 1])
 
 with col1:
-    st.title("📅 スケジュール")
+    st.title("📅 スケジュール管理")
 
 with col2:
     if st.button("ログアウト"):
@@ -159,7 +158,7 @@ with col_cal:
             "title": f"[{s['category']}] {s['title']}",
             "start": s["start"],
             "end": s["end"],
-            "color": "#999" if s["done"] else "#3788d8"
+            "color": "#999999" if s["done"] else "#3788d8"
         })
 
     events.append({
@@ -170,13 +169,18 @@ with col_cal:
         "color": "#ffd54f"
     })
 
-    cal = calendar(
+    calendar(
         events=events,
         key="cal",
         options={
             "locale": "ja",
             "initialView": "dayGridMonth",
-            "height": 650
+            "height": 650,
+            "headerToolbar": {
+                "left": "prev,next",
+                "center": "title",
+                "right": "dayGridMonth,timeGridWeek,timeGridDay,listWeek"
+            }
         }
     )
 
@@ -198,10 +202,10 @@ with col_list:
         st.write(f"{s['title']} ({s['category']})")
 
 # =========================================================
-# 追加フォーム（ここが本体）
+# 追加
 # =========================================================
 st.divider()
-st.subheader("➕ 追加")
+st.subheader("➕ スケジュール追加")
 
 with st.form("add"):
 
@@ -213,40 +217,16 @@ with st.form("add"):
     ed = st.date_input("終了日", st.session_state.selected_date)
     ett = st.time_input("終了時間", time(10))
 
-    # =========================
-    # カテゴリ（完全安定版）
-    # =========================
     base = ["仕事", "学校", "趣味"]
-    options = base + st.session_state.custom_categories + ["＋新規作成"]
+    options = base + st.session_state.custom_categories
 
-    st.selectbox(
-        "カテゴリ",
-        options,
-        key="category_mode"
-    )
-
-    mode = st.session_state.category_mode
-
-    new_cat = None
-
-    # ⭐ 即時表示の核心
-    if mode == "＋新規作成":
-        new_cat = st.text_input("新しいカテゴリ名")
-
-    category = new_cat if new_cat else mode
+    category = st.selectbox("カテゴリ", options)
 
     memo = st.text_area("メモ")
 
     submit = st.form_submit_button("追加")
 
     if submit:
-
-        if (
-            mode == "＋新規作成"
-            and new_cat
-            and new_cat not in st.session_state.custom_categories
-        ):
-            st.session_state.custom_categories.append(new_cat)
 
         add_schedule({
             "id": str(uuid.uuid4()),
