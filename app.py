@@ -179,7 +179,26 @@ with col_cal:
             "color": color
         })
 
-    calendar(events=events, key="cal")
+calendar(
+    events=events,
+    key="cal",
+    options={
+        "locale": "ja",
+        "headerToolbar": {
+            "left": "prev,next today",
+            "center": "title",
+            "right": "dayGridMonth,timeGridWeek,timeGridDay,listWeek"
+        },
+        "initialView": "dayGridMonth",
+        "buttonText": {
+            "today": "今日",
+            "month": "月",
+            "week": "週",
+            "day": "日",
+            "list": "一覧"
+        }
+    }
+)
 
 # =========================================================
 # タスク管理（右）
