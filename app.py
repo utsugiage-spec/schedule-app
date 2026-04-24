@@ -368,15 +368,23 @@ with st.form("add"):
     with c4:
         ett = st.time_input("終了時間", time(10, 0))
 
-    base_categories = ["仕事", "学校", "趣味"]
-    options = base_categories + st.session_state.custom_categories + ["＋新規作成"]
+base_categories = ["仕事", "学校", "趣味"]
+options = base_categories + st.session_state.custom_categories + ["＋新規作成"]
 
-    cat_mode = st.selectbox("カテゴリ", options)
+cat_mode = st.selectbox("カテゴリ", options)
 
-    if cat_mode == "＋新規作成":
-        category = st.text_input("新規カテゴリ", "未分類")
-    else:
-        category = cat_mode
+# =========================
+# 新規作成が選ばれた場合
+# =========================
+if cat_mode == "＋新規作成":
+
+    # 入力欄を必ず表示
+    new_cat = st.text_input("新しいカテゴリ名を入力")
+
+    category = new_cat if new_cat else "未分類"
+
+else:
+    category = cat_mode
 
     memo = st.text_area("メモ")
 
