@@ -102,7 +102,6 @@ def load_tasks(user_id):
         for r in rows
     ]
 
-    # ⭐ 時刻ソート（重要）
     return sorted(tasks, key=lambda t: t["start"])
 
 def mark_done(task_id):
@@ -145,7 +144,7 @@ if st.session_state.user_id is None:
                 st.session_state.user_id = uid
                 st.rerun()
             else:
-                st.error("ログイン失敗")
+                st.error("失敗")
 
     else:
         if st.button("登録"):
@@ -278,33 +277,58 @@ with col_task:
         st.info("タスクを選択してください")
 
 # =========================================================
-# タスク追加（カテゴリ：選択＋自由入力）
+# タスク追加（新UIレイアウト）
 # =========================================================
 st.divider()
 st.subheader("➕ タスク追加（期間対応）")
 
 with st.form("add"):
-    title = st.text_input("タイトル")
-    memo = st.text_area("メモ")
 
-    # カテゴリ（既存＋自由入力）
+    # 1行目：タイトル + 追加ボタン
+    col1, col2 = st.columns([4, 1])
+
+    with col1:
+        title = st.text_input("タイトル")
+
+    with col2:
+        submit = st.form_submit_button("追加")
+
+    # 2行目：開始
+    st.markdown("### 開始")
+    col3, col4 = st.columns(2)
+
+    with col3:
+        sd = st.date_input("開始日", date.today())
+
+    with col4:
+        stt = st.time_input("開始時間", time(9, 0))
+
+    # 3行目：終了
+    st.markdown("### 終了")
+    col5, col6 = st.columns(2)
+
+    with col5:
+        ed = st.date_input("終了日", date.today())
+
+    with col6:
+        ett = st.time_input("終了時間", time(10, 0))
+
+    # カテゴリ
+    st.markdown("### カテゴリ")
     existing_categories = sorted(list(set([t["category"] for t in tasks])))
-    category_mode = st.radio("カテゴリ", ["既存から選択", "新規作成"])
+    category_mode = st.radio("選択", ["既存から選択", "新規作成"])
 
     if category_mode == "既存から選択" and existing_categories:
-        category = st.selectbox("カテゴリ選択", existing_categories)
+        category = st.selectbox("カテゴリ", existing_categories)
     else:
         category = st.text_input("新規カテゴリ", "未分類")
 
-    st.markdown("#### 開始")
-    sd = st.date_input("開始日", date.today())
-    stt = st.time_input("開始時刻", time(9, 0))
+    # メモ
+    st.markdown("### メモ")
+    memo = st.text_area("メモ")
 
-    st.markdown("#### 終了")
-    ed = st.date_input("終了日", date.today())
-    ett = st.time_input("終了時刻", time(10, 0))
-
-    if st.form_submit_button("追加"):
+    # submit
+    if submit:
         task = {
             "id": str(uuid.uuid4()),
             "user_id": user_id,
