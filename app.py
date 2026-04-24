@@ -310,6 +310,9 @@ with col_list:
 # =========================================================
 # 追加フォーム（カテゴリ復活）
 # =========================================================
+# =========================================================
+# 追加フォーム（カテゴリ完全修正版）
+# =========================================================
 st.divider()
 st.subheader("➕ スケジュール追加")
 
@@ -329,26 +332,43 @@ with st.form("add"):
     with c4:
         ett = st.time_input("終了時間", time(10))
 
+    # ===============================
+    # カテゴリ（安定版）
+    # ===============================
     base = ["仕事", "学校", "趣味"]
+
+    if "custom_categories" not in st.session_state:
+        st.session_state.custom_categories = []
+
     options = base + st.session_state.custom_categories + ["＋新規作成"]
 
     mode = st.selectbox("カテゴリ", options)
 
-    new_cat = None
-    if mode == "＋新規作成":
-        new_cat = st.text_input("新カテゴリ")
+    # ⭐ ここが重要（即時表示）
+    new_cat = ""
 
-    category = new_cat if new_cat else mode
+    if mode == "＋新規作成":
+        new_cat = st.text_input("新しいカテゴリ名を入力")
+
+    # 最終カテゴリ
+    category = new_cat.strip() if mode == "＋新規作成" else mode
 
     memo = st.text_area("メモ")
 
     submit = st.form_submit_button("追加")
 
+    # ===============================
+    # 保存処理
+    # ===============================
     if submit:
 
-        if category not in base and category not in st.session_state.custom_categories:
-            if category and category != "＋新規作成":
-                st.session_state.custom_categories.append(category)
+        # カテゴリ保存（重複防止）
+        if (
+            mode == "＋新規作成"
+            and new_cat
+            and new_cat not in st.session_state.custom_categories
+        ):
+            st.session_state.custom_categories.append(new_cat)
 
         add_schedule({
             "id": str(uuid.uuid4()),
