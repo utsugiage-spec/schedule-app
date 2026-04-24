@@ -125,6 +125,12 @@ if "user_id" not in st.session_state:
 if "selected_task_id" not in st.session_state:
     st.session_state.selected_task_id = None
 
+if "custom_categories" not in st.session_state:
+    st.session_state.custom_categories = []
+
+if "memo_cache" not in st.session_state:
+    st.session_state.memo_cache = ""
+
 # =========================================================
 # LOGIN
 # =========================================================
@@ -144,7 +150,7 @@ if st.session_state.user_id is None:
                 st.session_state.user_id = uid
                 st.rerun()
             else:
-                st.error("失敗")
+                st.error("ログイン失敗")
 
     else:
         if st.button("登録"):
@@ -277,14 +283,14 @@ with col_task:
         st.info("タスクを選択してください")
 
 # =========================================================
-# タスク追加（新UIレイアウト）
+# タスク追加（カテゴリ永続＋新規作成対応）
 # =========================================================
 st.divider()
 st.subheader("➕ タスク追加（期間対応）")
 
 with st.form("add"):
 
-    # 1行目：タイトル + 追加ボタン
+    # タイトル + ボタン
     col1, col2 = st.columns([4, 1])
 
     with col1:
@@ -293,7 +299,7 @@ with st.form("add"):
     with col2:
         submit = st.form_submit_button("追加")
 
-    # 2行目：開始
+    # 開始
     st.markdown("### 開始")
     col3, col4 = st.columns(2)
 
@@ -303,7 +309,7 @@ with st.form("add"):
     with col4:
         stt = st.time_input("開始時間", time(9, 0))
 
-    # 3行目：終了
+    # 終了
     st.markdown("### 終了")
     col5, col6 = st.columns(2)
 
@@ -313,26 +319,31 @@ with st.form("add"):
     with col6:
         ett = st.time_input("終了時間", time(10, 0))
 
-st.markdown("### カテゴリ")
+    # カテゴリ
+    st.markdown("### カテゴリ")
 
-# 固定カテゴリ
-base_categories = ["仕事", "学校", "趣味"]
+    base_categories = ["仕事", "学校", "趣味"]
+    all_categories = base_categories + st.session_state.custom_categories + ["＋新規作成"]
 
-category_mode = st.selectbox(
-    "カテゴリを選択",
-    base_categories + ["＋新規作成"]
-)
+    category_mode = st.selectbox("カテゴリ選択", all_categories)
 
-if category_mode == "＋新規作成":
-    category = st.text_input("新しいカテゴリ名", "未分類")
-else:
-    category = category_mode
-    # メモ
+    if category_mode == "＋新規作成":
+        category = st.text_input("新しいカテゴリ名", "未分類")
+    else:
+        category = category_mode
+
+    # メモ（重要：保持）
     st.markdown("### メモ")
-    memo = st.text_area("メモ")
+    memo = st.text_area("メモ", value=st.session_state.memo_cache)
+    st.session_state.memo_cache = memo
 
     # submit
     if submit:
+
+        # 新カテゴリ保存
+        if category not in base_categories and category not in st.session_state.custom_categories:
+            st.session_state.custom_categories.append(category)
+
         task = {
             "id": str(uuid.uuid4()),
             "user_id": user_id,
