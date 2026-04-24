@@ -3,7 +3,7 @@ import sqlite3
 import hashlib
 import uuid
 import jpholiday
-from datetime import datetime, date, time, timezone, timedelta
+from datetime import datetime, date, time
 from streamlit_calendar import calendar
 
 st.set_page_config(page_title="スケジュール管理", layout="wide")
@@ -43,12 +43,6 @@ conn.commit()
 def hash_pw(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
 
-def parse_date(d):
-    return datetime.fromisoformat(d).date()
-
-def format_dt(dt):
-    return datetime.fromisoformat(dt).strftime("%Y/%m/%d %H:%M")
-
 def in_range(s, target):
     sd = datetime.fromisoformat(s["start"]).date()
     ed = datetime.fromisoformat(s["end"]).date()
@@ -57,18 +51,20 @@ def in_range(s, target):
 # =========================================================
 # auth
 # =========================================================
-def register(u, p):
-    try:
-        c.execute("INSERT INTO users VALUES (?, ?, ?)", (str(uuid.uuid4()), u, hash_pw(p)))
-        conn.commit()
-        return True
-    except:
-        return False
-
 def login(u, p):
     c.execute("SELECT id, password_hash FROM users WHERE username=?", (u,))
     r = c.fetchone()
     return r[0] if r and r[1] == hash_pw(p) else None
+
+def register(u, p):
+    try:
+        c.execute("INSERT INTO users VALUES (?, ?, ?)", (
+            str(uuid.uuid4()), u, hash_pw(p)
+        ))
+        conn.commit()
+        return True
+    except:
+        return False
 
 # =========================================================
 # schedules
@@ -112,7 +108,7 @@ def delete_schedule(i):
     conn.commit()
 
 # =========================================================
-# session
+# session_state
 # =========================================================
 if "user_id" not in st.session_state:
     st.session_state.user_id = None
@@ -122,9 +118,6 @@ if "selected_date" not in st.session_state:
 
 if "selected_schedule_id" not in st.session_state:
     st.session_state.selected_schedule_id = None
-
-if "custom_categories" not in st.session_state:
-    st.session_state.custom_categories = []
 
 # =========================================================
 # LOGIN
@@ -145,12 +138,12 @@ if st.session_state.user_id is None:
                 st.session_state.user_id = uid
                 st.rerun()
             else:
-                st.error("失敗")
+                st.error("ログイン失敗")
 
     else:
         if st.button("登録"):
             if register(u, p):
-                st.success("登録完了")
+                st.success("登録成功")
 
     st.stop()
 
@@ -183,20 +176,15 @@ col_cal, col_list = st.columns([3.5, 1.5])
 # =========================================================
 with col_cal:
 
-    st.subheader("📅 カレンダー")
-
     events = []
 
-    # スケジュール
     for s in schedules:
-        color = "#999999" if s["done"] else "#3788d8"
-
         events.append({
             "id": s["id"],
             "title": f"[{s['category']}] {s['title']}",
             "start": s["start"],
             "end": s["end"],
-            "color": color
+            "color": "#999999" if s["done"] else "#3788d8"
         })
 
     # 祝日
@@ -216,7 +204,7 @@ with col_cal:
                 "color": "#ffcccc"
             })
 
-    # 選択日ハイライト（固定1個）
+    # 選択日
     events.append({
         "id": "selected",
         "title": "📍選択中",
@@ -248,12 +236,12 @@ with col_cal:
 
     if cal and isinstance(cal, dict):
         if "dateClick" in cal:
-            st.session_state.selected_date = parse_date(cal["dateClick"]["date"])
+            st.session_state.selected_date = datetime.fromisoformat(cal["dateClick"]["date"]).date()
             st.session_state.selected_schedule_id = None
             st.rerun()
 
 # =========================================================
-# スケジュール一覧
+# 一覧
 # =========================================================
 with col_list:
 
@@ -266,9 +254,6 @@ with col_list:
         st.session_state.selected_schedule_id = None
 
     filtered = [s for s in schedules if in_range(s, selected)]
-
-    if filtered and st.session_state.selected_schedule_id is None:
-        st.session_state.selected_schedule_id = filtered[0]["id"]
 
     for s in filtered:
 
@@ -291,27 +276,23 @@ with col_list:
         with c3:
             if st.button("🗑", key=f"x{s['id']}"):
                 delete_schedule(s["id"])
-                st.session_state.selected_schedule_id = None
                 st.rerun()
 
-    st.divider()
+# =========================================================
+# 詳細
+# =========================================================
+st.divider()
+st.subheader("詳細")
 
-    st.subheader("詳細")
+sel = next((x for x in schedules if x["id"] == st.session_state.selected_schedule_id), None)
 
-    sel = next((x for x in schedules if x["id"] == st.session_state.selected_schedule_id), None)
-
-    if sel:
-        st.write(sel["title"])
-        st.write(sel["category"])
-        st.write(sel["memo"])
-        st.write(format_dt(sel["start"]))
-        st.write(format_dt(sel["end"]))
+if sel:
+    st.write(sel["title"])
+    st.write(sel["category"])
+    st.write(sel["memo"])
 
 # =========================================================
-# 追加フォーム（カテゴリ復活）
-# =========================================================
-# =========================================================
-# 追加フォーム（カテゴリ完全修正版）
+# 追加
 # =========================================================
 st.divider()
 st.subheader("➕ スケジュール追加")
@@ -320,55 +301,20 @@ with st.form("add"):
 
     title = st.text_input("タイトル")
 
-    c1, c2 = st.columns(2)
-    with c1:
-        sd = st.date_input("開始日", st.session_state.selected_date)
-    with c2:
-        stt = st.time_input("開始時間", time(9))
+    sd = st.date_input("開始日", st.session_state.selected_date)
+    stt = st.time_input("開始時間", time(9))
 
-    c3, c4 = st.columns(2)
-    with c3:
-        ed = st.date_input("終了日", st.session_state.selected_date)
-    with c4:
-        ett = st.time_input("終了時間", time(10))
+    ed = st.date_input("終了日", st.session_state.selected_date)
+    ett = st.time_input("終了時間", time(10))
 
-    # ===============================
-    # カテゴリ（安定版）
-    # ===============================
     base = ["仕事", "学校", "趣味"]
-
-    if "custom_categories" not in st.session_state:
-        st.session_state.custom_categories = []
-
-    options = base + st.session_state.custom_categories + ["＋新規作成"]
-
-    mode = st.selectbox("カテゴリ", options)
-
-    # ⭐ ここが重要（即時表示）
-    new_cat = ""
-
-    if mode == "＋新規作成":
-        new_cat = st.text_input("新しいカテゴリ名を入力")
-
-    # 最終カテゴリ
-    category = new_cat.strip() if mode == "＋新規作成" else mode
+    category = st.selectbox("カテゴリ", base)
 
     memo = st.text_area("メモ")
 
     submit = st.form_submit_button("追加")
 
-    # ===============================
-    # 保存処理
-    # ===============================
     if submit:
-
-        # カテゴリ保存（重複防止）
-        if (
-            mode == "＋新規作成"
-            and new_cat
-            and new_cat not in st.session_state.custom_categories
-        ):
-            st.session_state.custom_categories.append(new_cat)
 
         add_schedule({
             "id": str(uuid.uuid4()),
