@@ -335,11 +335,11 @@ with st.form("add"):
     base_categories = ["仕事", "学校", "趣味"]
     options = base_categories + st.session_state.custom_categories + ["＋新規作成"]
 
-    st.session_state.category_mode = st.selectbox(
-        "カテゴリ",
-        options,
-        key="category_mode"
-    )
+    st.selectbox(
+    "カテゴリ",
+    options,
+    key="category_mode"
+)
 
     # ⭐ ここが即時表示の核心
     if st.session_state.category_mode == "＋新規作成":
