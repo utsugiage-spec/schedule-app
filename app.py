@@ -42,6 +42,16 @@ conn.commit()
 def hash_pw(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
 
+def is_in_range(task, target_date):
+    start = datetime.fromisoformat(task["start"]).date()
+    end = datetime.fromisoformat(task["end"]).date()
+    return start <= target_date <= end
+
+def format_range(t):
+    s = datetime.fromisoformat(t["start"]).strftime("%Y/%m/%d %H:%M")
+    e = datetime.fromisoformat(t["end"]).strftime("%Y/%m/%d %H:%M")
+    return f"{s} → {e}"
+
 # =========================================================
 # auth
 # =========================================================
@@ -146,7 +156,7 @@ if st.session_state.user_id is None:
     st.stop()
 
 # =========================================================
-# HEADER（右上ログアウト）
+# HEADER
 # =========================================================
 col_title, col_logout = st.columns([8, 1])
 
@@ -154,7 +164,7 @@ with col_title:
     st.title("📅 スケジュール管理")
 
 with col_logout:
-    if st.button("ログアウト"):
+    if st.button("🚪 ログアウト"):
         st.session_state.user_id = None
         st.session_state.selected_task_id = None
         st.rerun()
@@ -166,12 +176,12 @@ user_id = st.session_state.user_id
 tasks = load_tasks(user_id)
 
 # =========================================================
-# LAYOUT（変更なし）
+# LAYOUT
 # =========================================================
-col_cal, col_task = st.columns([3, 2])
+col_cal, col_task = st.columns([3.5, 1.5])
 
 # =========================================================
-# カレンダー（左）
+# カレンダー（左・複数日対応）
 # =========================================================
 with col_cal:
     st.subheader("📅 カレンダー")
@@ -194,6 +204,7 @@ with col_cal:
         options={
             "locale": "ja",
             "initialView": "dayGridMonth",
+            "height": 650,
             "headerToolbar": {
                 "left": "prev,next",
                 "center": "title",
@@ -218,16 +229,13 @@ with col_task:
 
     filtered = [
         t for t in tasks
-        if datetime.fromisoformat(t["start"]).date() == selected_date
+        if is_in_range(t, selected_date)
     ]
 
     st.markdown("### タスク一覧")
 
-    # ============================
-    # ★ここが変更ポイント
-    # ============================
     for t in filtered:
-        label = "✅ " + t["title"] if t["done"] else t["title"]
+        label = f"{'✅ ' if t['done'] else ''}{t['title']} ({format_range(t)})"
 
         col_name, col_done, col_del = st.columns([6, 2, 2])
 
@@ -253,26 +261,18 @@ with col_task:
 
     st.divider()
 
-    # ============================
-    # 詳細（残す）
-    # ============================
     st.markdown("### 詳細")
 
     task = next((x for x in tasks if x["id"] == st.session_state.selected_task_id), None)
 
     if task:
-        start = datetime.fromisoformat(task["start"]).strftime("%Y/%m/%d %H:%M")
-        end = datetime.fromisoformat(task["end"]).strftime("%Y/%m/%d %H:%M")
-
         st.write(f"**タイトル:** {task['title']}")
         st.write(f"**カテゴリ:** {task['category']}")
         st.write(f"**メモ:** {task['memo']}")
-        st.write(f"**開始:** {start}")
-        st.write(f"**終了:** {end}")
         st.write(f"**状態:** {'完了' if task['done'] else '未完了'}")
 
     else:
-        st.info("タスクをクリックしてください")
+        st.info("タスクを選択してください")
 
 # =========================================================
 # タスク追加
