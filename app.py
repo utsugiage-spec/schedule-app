@@ -56,7 +56,8 @@ def in_range(s, target):
 # =========================================================
 def register(u, p):
     try:
-        c.execute("INSERT INTO users VALUES (?, ?, ?)", (str(uuid.uuid4()), u, hash_pw(p)))
+        c.execute("INSERT INTO users VALUES (?, ?, ?)",
+                  (str(uuid.uuid4()), u, hash_pw(p)))
         conn.commit()
         return True
     except:
@@ -71,7 +72,9 @@ def login(u, p):
 # schedules
 # =========================================================
 def add_schedule(s):
-    c.execute("INSERT INTO schedules VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (
+    c.execute("""
+        INSERT INTO schedules VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
         s["id"], s["user_id"], s["title"],
         s["memo"], s["category"],
         s["start"], s["end"], int(s["done"])
@@ -109,7 +112,7 @@ def delete_schedule(i):
     conn.commit()
 
 # =========================================================
-# session
+# session_state
 # =========================================================
 if "user_id" not in st.session_state:
     st.session_state.user_id = None
@@ -139,12 +142,12 @@ if st.session_state.user_id is None:
                 st.session_state.user_id = uid
                 st.rerun()
             else:
-                st.error("失敗")
+                st.error("ログイン失敗")
 
     else:
         if st.button("登録"):
             if register(u, p):
-                st.success("登録完了")
+                st.success("登録成功")
 
     st.stop()
 
@@ -182,14 +185,12 @@ with col_cal:
     events = []
 
     for s in schedules:
-        color = "#999999" if s["done"] else "#3788d8"
-
         events.append({
             "id": s["id"],
             "title": f"[{s['category']}] {s['title']}",
             "start": s["start"],
             "end": s["end"],
-            "color": color
+            "color": "#999999" if s["done"] else "#3788d8"
         })
 
     # 祝日
@@ -240,14 +241,14 @@ with col_cal:
     )
 
     # =====================================================
-    # ⭐ 修正ポイント（1日ズレ解消）
+    # ⭐ 修正済み（日付ズレ＆ISO対応）
     # =====================================================
     if cal and isinstance(cal, dict):
         if "dateClick" in cal:
             clicked = cal["dateClick"]["date"]
 
-            # ← ここ重要：文字列をそのままdateへ
-            st.session_state.selected_date = datetime.strptime(clicked, "%Y-%m-%d").date()
+            # ← ここが完全安定版
+            st.session_state.selected_date = datetime.fromisoformat(clicked).date()
 
             st.session_state.selected_schedule_id = None
             st.rerun()
