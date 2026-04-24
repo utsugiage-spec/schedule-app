@@ -1,19 +1,28 @@
 import streamlit as st
-from datetime import datetime, date, timedelta
 import sqlite3
+import hashlib
 import uuid
+from datetime import datetime, date, time, timedelta
 from streamlit_calendar import calendar
 
 st.set_page_config(page_title="スケジュール管理", layout="wide")
 
-st.title("📅 スケジュール管理アプリ（SQLite版）")
-
 # =========================================================
 # DB接続
 # =========================================================
-conn = sqlite3.connect("tasks.db", check_same_thread=False)
+conn = sqlite3.connect("app.db", check_same_thread=False)
 c = conn.cursor()
 
+# ユーザーテーブル
+c.execute("""
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    username TEXT UNIQUE,
+    password_hash TEXT
+)
+""")
+
+# タスクテーブル
 c.execute("""
 CREATE TABLE IF NOT EXISTS tasks (
     id TEXT PRIMARY KEY,
@@ -26,28 +35,51 @@ CREATE TABLE IF NOT EXISTS tasks (
     done INTEGER
 )
 """)
+
 conn.commit()
 
 # =========================================================
-# ユーザー識別
+# セキュリティ（パスワードハッシュ）
 # =========================================================
-user_id = st.text_input("ユーザーIDを入力してください", value="guest")
+def hash_pw(pw):
+    return hashlib.sha256(pw.encode()).hexdigest()
 
 # =========================================================
-# DB操作関数
+# ユーザー登録
+# =========================================================
+def register(username, password):
+    try:
+        c.execute(
+            "INSERT INTO users VALUES (?, ?, ?)",
+            (str(uuid.uuid4()), username, hash_pw(password))
+        )
+        conn.commit()
+        return True
+    except:
+        return False
+
+# =========================================================
+# ログイン
+# =========================================================
+def login(username, password):
+    c.execute(
+        "SELECT id, password_hash FROM users WHERE username=?",
+        (username,)
+    )
+    result = c.fetchone()
+
+    if result and result[1] == hash_pw(password):
+        return result[0]
+    return None
+
+# =========================================================
+# タスク操作
 # =========================================================
 def add_task(task):
-    c.execute("""
-        INSERT INTO tasks VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        task["id"],
-        task["user_id"],
-        task["title"],
-        task["memo"],
-        task["category"],
-        task["start"],
-        task["end"],
-        int(task["done"])
+    c.execute("INSERT INTO tasks VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (
+        task["id"], task["user_id"], task["title"],
+        task["memo"], task["category"],
+        task["start"], task["end"], int(task["done"])
     ))
     conn.commit()
 
@@ -82,25 +114,62 @@ def delete_task(task_id):
     conn.commit()
 
 # =========================================================
-# データ取得
+# session_state（ログイン保持）
 # =========================================================
+if "user_id" not in st.session_state:
+    st.session_state.user_id = None
+
+# =========================================================
+# ログイン画面
+# =========================================================
+if st.session_state.user_id is None:
+
+    st.title("🔐 ログイン / 新規登録")
+
+    mode = st.radio("選択", ["ログイン", "新規登録"])
+
+    username = st.text_input("ユーザー名")
+    password = st.text_input("パスワード", type="password")
+
+    if mode == "ログイン":
+        if st.button("ログイン"):
+            uid = login(username, password)
+            if uid:
+                st.session_state.user_id = uid
+                st.success("ログイン成功")
+                st.rerun()
+            else:
+                st.error("ログイン失敗")
+
+    else:
+        if st.button("新規登録"):
+            ok = register(username, password)
+            if ok:
+                st.success("登録成功 → ログインしてください")
+            else:
+                st.error("そのユーザー名は既に存在します")
+
+    st.stop()
+
+# =========================================================
+# ログイン後
+# =========================================================
+user_id = st.session_state.user_id
+
+st.title("📅 スケジュール管理アプリ")
+
+if st.button("ログアウト"):
+    st.session_state.user_id = None
+    st.rerun()
+
 tasks = load_tasks(user_id)
-
-# =========================================================
-# カテゴリ色
-# =========================================================
-base_categories = ["仕事", "勉強", "プライベート", "未分類"]
-all_categories = list(set(base_categories + [t["category"] for t in tasks]))
-
-colors = ["#3788d8", "#e74c3c", "#2ecc71", "#f1c40f", "#9b59b6", "#1abc9c"]
-category_color = {cat: colors[i % len(colors)] for i, cat in enumerate(all_categories)}
 
 # =========================================================
 # カレンダー
 # =========================================================
 events = []
 for t in tasks:
-    color = "#999999" if t["done"] else category_color.get(t["category"], "#3788d8")
+    color = "#999999" if t["done"] else "#3788d8"
 
     events.append({
         "id": t["id"],
@@ -110,107 +179,68 @@ for t in tasks:
         "color": color
     })
 
-calendar(
-    events=events,
-    options={
-        "locale": "ja",
-        "headerToolbar": {
-            "left": "prev,next",
-            "center": "title",
-            "right": "dayGridMonth,timeGridWeek,timeGridDay"
-        }
-    },
-    key="calendar"
-)
+calendar(events=events, key="cal")
 
 # =========================================================
 # タスク一覧
 # =========================================================
 st.subheader("タスク一覧")
 
-selected_date = st.date_input("日付選択", date.today())
-
-day_tasks = [
-    t for t in tasks
-    if datetime.fromisoformat(t["start"]).date() == selected_date
-]
-
-active = [t for t in day_tasks if not t["done"]]
-done = [t for t in day_tasks if t["done"]]
-
-# ---------------- 未完了 ----------------
-st.markdown("### 🟢 未完了")
-for t in active:
+for t in tasks:
     st.markdown(f"""
     **{t['title']}**  
     📂 {t['category']}  
     📝 {t['memo']}
     """)
 
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
 
     with col1:
-        if st.button("✅ 完了", key=f"done_{t['id']}"):
-            mark_done(t["id"])
-            st.rerun()
-
-    with col2:
-        if st.button("🗑 削除", key=f"del_{t['id']}"):
-            delete_task(t["id"])
-            st.rerun()
-
-    st.divider()
-
-# ---------------- 完了（折りたたみ） ----------------
-with st.expander("✅ 完了済みタスク"):
-    for t in done:
-        st.markdown(f"""
-        **{t['title']}**  
-        📂 {t['category']}
-        """)
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            if st.button("↩ 戻す", key=f"undo_{t['id']}"):
+        if not t["done"]:
+            if st.button("完了", key=f"done_{t['id']}"):
+                mark_done(t["id"])
+                st.rerun()
+        else:
+            if st.button("戻す", key=f"undo_{t['id']}"):
                 mark_undone(t["id"])
                 st.rerun()
 
-        with col2:
-            if st.button("🗑 削除", key=f"del2_{t['id']}"):
-                delete_task(t["id"])
-                st.rerun()
-
-        st.divider()
+    with col2:
+        if st.button("削除", key=f"del_{t['id']}"):
+            delete_task(t["id"])
+            st.rerun()
 
 # =========================================================
 # タスク追加
 # =========================================================
 st.subheader("タスク追加")
 
-with st.form("add_form"):
-    title = st.text_input("タスク名")
+with st.form("add"):
+    title = st.text_input("タイトル")
     memo = st.text_area("メモ")
+    category = st.text_input("カテゴリ", "未分類")
 
-    category = st.text_input("カテゴリ", value="未分類")
+    d = st.date_input("日付", date.today())
+    stime = st.time_input("開始", datetime.now().time())
+    etime = st.time_input("終了", (datetime.now() + timedelta(hours=1)).time())
 
-    task_date = st.date_input("日付", date.today())
-    start_time = st.time_input("開始時間", datetime.now().time())
-    end_time = st.time_input("終了時間", (datetime.now() + timedelta(hours=1)).time())
+    submit = st.form_submit_button("追加")
 
-    submitted = st.form_submit_button("追加")
-
-    if submitted and title:
+    if submit and title:
         task = {
             "id": str(uuid.uuid4()),
             "user_id": user_id,
             "title": title,
             "memo": memo,
             "category": category,
-            "start": datetime.combine(task_date, start_time).isoformat(),
-            "end": datetime.combine(task_date, end_time).isoformat(),
+            "start": datetime.combine(d, stime).isoformat(),
+            "end": datetime.combine(d, etime).isoformat(),
             "done": False
         }
+
+        add_task(task)
+        st.success("追加しました")
+        st.rerun()
 
         add_task(task)
         st.success("追加しました")
