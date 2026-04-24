@@ -3,7 +3,7 @@ import sqlite3
 import hashlib
 import uuid
 import jpholiday
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timezone, timedelta
 from streamlit_calendar import calendar
 
 st.set_page_config(page_title="スケジュール管理", layout="wide")
@@ -43,6 +43,9 @@ conn.commit()
 def hash_pw(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
 
+def parse_date(d):
+    return datetime.fromisoformat(d).date()
+
 def format_dt(dt):
     return datetime.fromisoformat(dt).strftime("%Y/%m/%d %H:%M")
 
@@ -56,8 +59,7 @@ def in_range(s, target):
 # =========================================================
 def register(u, p):
     try:
-        c.execute("INSERT INTO users VALUES (?, ?, ?)",
-                  (str(uuid.uuid4()), u, hash_pw(p)))
+        c.execute("INSERT INTO users VALUES (?, ?, ?)", (str(uuid.uuid4()), u, hash_pw(p)))
         conn.commit()
         return True
     except:
@@ -72,9 +74,7 @@ def login(u, p):
 # schedules
 # =========================================================
 def add_schedule(s):
-    c.execute("""
-        INSERT INTO schedules VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
+    c.execute("INSERT INTO schedules VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (
         s["id"], s["user_id"], s["title"],
         s["memo"], s["category"],
         s["start"], s["end"], int(s["done"])
@@ -112,7 +112,7 @@ def delete_schedule(i):
     conn.commit()
 
 # =========================================================
-# session_state
+# session
 # =========================================================
 if "user_id" not in st.session_state:
     st.session_state.user_id = None
@@ -142,12 +142,12 @@ if st.session_state.user_id is None:
                 st.session_state.user_id = uid
                 st.rerun()
             else:
-                st.error("ログイン失敗")
+                st.error("失敗")
 
     else:
         if st.button("登録"):
             if register(u, p):
-                st.success("登録成功")
+                st.success("登録完了")
 
     st.stop()
 
@@ -185,12 +185,14 @@ with col_cal:
     events = []
 
     for s in schedules:
+        color = "#999999" if s["done"] else "#3788d8"
+
         events.append({
             "id": s["id"],
             "title": f"[{s['category']}] {s['title']}",
             "start": s["start"],
             "end": s["end"],
-            "color": "#999999" if s["done"] else "#3788d8"
+            "color": color
         })
 
     # 祝日
@@ -241,14 +243,14 @@ with col_cal:
     )
 
     # =====================================================
-    # ⭐ 修正済み（日付ズレ＆ISO対応）
+    # ★ 修正①：日付ズレ修正（ここだけ変更）
     # =====================================================
     if cal and isinstance(cal, dict):
         if "dateClick" in cal:
             clicked = cal["dateClick"]["date"]
 
-            # ← ここが完全安定版
-            st.session_state.selected_date = datetime.fromisoformat(clicked).date()
+            clicked_dt = datetime.fromisoformat(clicked.replace("Z", "+00:00"))
+            st.session_state.selected_date = clicked_dt.date()
 
             st.session_state.selected_schedule_id = None
             st.rerun()
@@ -262,9 +264,13 @@ with col_list:
 
     selected = st.date_input("日付", st.session_state.selected_date)
 
+    # =====================================================
+    # ★ 修正②：詳細ズレ防止（rerun追加のみ）
+    # =====================================================
     if selected != st.session_state.selected_date:
         st.session_state.selected_date = selected
         st.session_state.selected_schedule_id = None
+        st.rerun()
 
     filtered = [s for s in schedules if in_range(s, selected)]
 
