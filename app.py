@@ -313,16 +313,20 @@ with st.form("add"):
     with col6:
         ett = st.time_input("終了時間", time(10, 0))
 
-    # カテゴリ
-    st.markdown("### カテゴリ")
-    existing_categories = sorted(list(set([t["category"] for t in tasks])))
-    category_mode = st.radio("選択", ["既存から選択", "新規作成"])
+st.markdown("### カテゴリ")
 
-    if category_mode == "既存から選択" and existing_categories:
-        category = st.selectbox("カテゴリ", existing_categories)
-    else:
-        category = st.text_input("新規カテゴリ", "未分類")
+# 固定カテゴリ
+base_categories = ["仕事", "学校", "趣味"]
 
+category_mode = st.selectbox(
+    "カテゴリを選択",
+    base_categories + ["＋新規作成"]
+)
+
+if category_mode == "＋新規作成":
+    category = st.text_input("新しいカテゴリ名", "未分類")
+else:
+    category = category_mode
     # メモ
     st.markdown("### メモ")
     memo = st.text_area("メモ")
